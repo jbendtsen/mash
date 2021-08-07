@@ -67,7 +67,7 @@ void main() {
 
 		uint modifier = grid[cell_idx].modifier;
 		if (modifier != 0)
-			value_right += get_glyph_value(N_CHAR_GLYPHS + modifier, pos);
+			value_right += get_glyph_value(N_CHAR_GLYPHS - 1 + modifier, pos);
 	}
 
 	if (left[0] >= 0 && left[0] != right[0]) {
