@@ -1,37 +1,27 @@
+#include "font.h"
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_BITMAP_H
 #include FT_STROKER_H
 
+#include <vector>
+
 typedef unsigned char u8;
 
-#define N_CHARS 386
+#define N_GLYPHS 384
 #define SLANT 0.2
-
-struct Font_Render {
-	u8 *buf;
-	float dpi_w;
-	float dpi_h;
-	int points;
-	int baseline;
-	int overlap_w;
-	int glyph_w;
-	int glyph_h;
-	int total_size;
-
-	int get_full_glyph_width() {
-		return glyph_w + 2*overlap_w;
-	}
-};
 
 #define FLOAT_FROM_16_16(n) ((float)((n) >> 16) + (float)((n) & 0xffff) / 65536.0)
 
 static FT_Library library = nullptr;
 static FT_Stroker stroker = nullptr;
 
+static std::vector<FT_Face> font_faces;
+
 static bool g_italic = false;
 
-FT_Face load_font_face(const char *path) {
+Font_Handle load_font_face(const char *path) {
 	if (!library) {
 		if (FT_Init_FreeType(&library) != 0) {
 			fprintf(stderr, "Failed to load freetype\n");
@@ -39,16 +29,18 @@ FT_Face load_font_face(const char *path) {
 		}
 	}
 
+	if (!stroker)
+		FT_Stroker_New(library, &stroker);
+
 	FT_Face face;
 	if (FT_New_Face(library, path, 0, &face) != 0) {
 		fprintf(stderr, "Error loading font \"%s\"\n", path);
-		FT_Done_FreeType(library);
 		return nullptr;
 	}
 
-	FT_Stroker_New(library, &stroker);
+	font_faces.push_back(face);
 
-	return face;
+	return (Font_Handle)face;
 }
 
 const char *get_font_type_name(bool bold) {
@@ -65,7 +57,7 @@ const char *get_font_type_name(bool bold) {
 }
 
 template<bool bold>
-void render_ascii(Font_Render& render, FT_Face face, int start_idx) {
+void render_ascii(Font_Render render, FT_Face face, int start_idx) {
 	int full_glyph_w = render.glyph_w + 2*render.overlap_w;
 
 	for (int c = 0x20; c <= 0x7e; c++) {
@@ -100,8 +92,11 @@ void render_ascii(Font_Render& render, FT_Face face, int start_idx) {
 		int x = render.overlap_w + left;
 		int y = render.baseline - top;
 
+		// HACK
+		if (x < 0) x = 0;
+
 		if (x < 0 || y < 0 || x + w > full_glyph_w || y + h > render.glyph_h) {
-			printf("%s: '%c' doesn't fit: glyph=(%d,%d,%dx%d), frame=%dx%d\n", get_font_type_name(false), c, x, y, w, h, full_glyph_w, render.glyph_h);
+			fprintf(stderr, "%s: '%c' doesn't fit: glyph=(%d,%d,%dx%d), frame=%dx%d\n", get_font_type_name(false), c, x, y, w, h, full_glyph_w, render.glyph_h);
 			continue;
 		}
 
@@ -117,7 +112,9 @@ void render_ascii(Font_Render& render, FT_Face face, int start_idx) {
 	}
 }
 
-Font_Render size_up_font_render(FT_Face face, float size, float dpi_w, float dpi_h) {
+Font_Render size_up_font_render(Font_Handle fh, float size, float dpi_w, float dpi_h) {
+	auto face = (FT_Face)fh;
+
 	float req_size = size * 64.0;
 	int pts = (int)(req_size + 0.5);
 
@@ -134,9 +131,6 @@ Font_Render size_up_font_render(FT_Face face, float size, float dpi_w, float dpi
 	int glyph_w = (int)glyph_w_f;
 	int glyph_h = (int)glyph_h_f;
 
-	if (glyph_w <= 0)
-		return {};
-
 	Font_Render render = {
 		.dpi_w = dpi_w,
 		.dpi_h = dpi_h,
@@ -147,11 +141,13 @@ Font_Render size_up_font_render(FT_Face face, float size, float dpi_w, float dpi
 		.glyph_h = glyph_h
 	};
 
-	render.total_size = N_CHARS * render.get_full_glyph_width() * glyph_h;
+	render.total_size = N_GLYPHS * render.get_full_glyph_width() * glyph_h;
 	return render;
 }
 
-void make_font_render(FT_Face face, Font_Render& render) {
+void make_font_render(Font_Handle fh, Font_Render render) {
+	auto face = (FT_Face)fh;
+
 	FT_Set_Char_Size(face, 0, render.points, render.dpi_w, render.dpi_h);
 	FT_Stroker_Set(stroker, render.points / 20, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
 
@@ -171,74 +167,23 @@ void make_font_render(FT_Face face, Font_Render& render) {
 	render_ascii<true>(render, face, 288);
 
 	int full_glyph_w = render.get_full_glyph_width();
-
+/*
 	int bar_h = 1 + (render.glyph_h / 15);
 	int bar_bottom = render.glyph_h - bar_h;
 	int bar_middle = bar_bottom / 2;
 
-	int underline_offset     = (N_CHARS - 2) * full_glyph_w * render.glyph_h;
-	int strikethrough_offset = (N_CHARS - 1) * full_glyph_w * render.glyph_h;
+	int underline_offset     = (N_GLYPHS - 2) * full_glyph_w * render.glyph_h;
+	int strikethrough_offset = (N_GLYPHS - 1) * full_glyph_w * render.glyph_h;
 
 	memset(render.buf + underline_offset + (bar_bottom * full_glyph_w), 0xff, bar_h * full_glyph_w);
 	memset(render.buf + strikethrough_offset + (bar_middle * full_glyph_w), 0xff, bar_h * full_glyph_w);
-}
-/*
-void destroy_font_face(Font_Face face) {
-	FT_Done_Face((FT_Face)face);
-}
 */
+}
+
 void ft_quit() {
+	for (auto& face : font_faces)
+		FT_Done_Face(face);
+
 	FT_Stroker_Done(stroker);
 	FT_Done_FreeType(library);
-}
-
-int main(int argc, char **argv) {
-	if (argc != 2)
-		return 1;
-
-	FT_Face face = load_font_face(argv[1]);
-	if (!face)
-		return 2;
-
-	Font_Render render = size_up_font_render(face, 32, 96, 96);
-	if (render.total_size) {
-		render.buf = new u8[render.total_size]();
-		make_font_render(face, render);
-	}
-
-	FT_Done_Face(face);
-	ft_quit();
-
-	if (!render.total_size)
-		return 3;
-
-	FILE *f = fopen("debug.bin", "wb");
-	fwrite(render.buf, 1, render.total_size, f);
-	fclose(f);
-
-	int full_glyph_w = render.get_full_glyph_width();
-	printf("glyph slot: %dx%d\n", full_glyph_w, render.glyph_h);
-
-	int size = 384 * full_glyph_w * render.glyph_h;
-	int width = full_glyph_w * 24;
-	u8 *buf = new u8[size];
-
-	for (int i = 0; i < size / full_glyph_w; i++) {
-		int col = i % 24;
-		int row = i / 24;
-		int inner_row = row % render.glyph_h;
-		int outer_row = row / render.glyph_h;
-
-		int gl = col + outer_row * 24;
-		int idx = (gl * render.glyph_h + inner_row) * full_glyph_w;
-		memcpy(buf + i*full_glyph_w, render.buf + idx, full_glyph_w);
-	}
-
-	f = fopen("debug_frand.bin", "wb");
-	fwrite(buf, 1, size, f);
-	fclose(f);
-
-	delete[] buf;
-	delete[] render.buf;
-	return 0;
 }

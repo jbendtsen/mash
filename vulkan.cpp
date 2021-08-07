@@ -342,9 +342,7 @@ VkResult Vulkan::create_framebuffer() {
 		.layers = 1
 	};
 
-	VkResult res = vkCreateFramebuffer(device, &fb_info, nullptr, &framebuffers[i]);
-	if (res != VK_SUCCESS)
-		return res;
+	return vkCreateFramebuffer(device, &fb_info, nullptr, &framebuffer);
 }
 
 VkResult Vulkan::create_semaphores() {
@@ -461,8 +459,8 @@ int init_vulkan(Vulkan& vk, VkShaderModuleCreateInfo& vert_shader_buf, VkShaderM
 	res = vk.GetSwapchainImagesKHR(vk.device, vk.swapchain, &n_images, &vk.swap_image);
 		FAIL_IF(n_images != 1 || res != VK_SUCCESS, "Could not acquire swapchain image (n_images=%d, res=%d)\n", n_images, res)
 
-	VkImageViewCreateInfo iv_info = make_imageview_info(swap_image, sf_color_fmt.format, VK_IMAGE_ASPECT_COLOR_BIT);
-	res = vkCreateImageView(device, &iv_info, nullptr, &swap_image_view);
+	VkImageViewCreateInfo iv_info = make_imageview_info(&vk.swap_image, vk.sf_color_fmt.format, VK_IMAGE_ASPECT_COLOR_BIT);
+	res = vkCreateImageView(vk.device, &iv_info, nullptr, &vk.swap_image_view);
 		FAIL_IF(res != VK_SUCCESS, "vkCreateImageView() failed (%d)\n", res)
 
 	failure = vk.create_command_pool_and_draw_buffers();
@@ -471,7 +469,7 @@ int init_vulkan(Vulkan& vk, VkShaderModuleCreateInfo& vert_shader_buf, VkShaderM
 	res = vk.create_renderpass();
 		FAIL_IF(res != VK_SUCCESS, "vkCreateRenderPass() failed (%d)\n", res)
 
-	res = vk.create_framebuffers();
+	res = vk.create_framebuffer();
 		FAIL_IF(res != VK_SUCCESS, "vkCreateFramebuffer() failed (%d)\n", res)
 
 	res = vk.create_semaphores();
@@ -521,12 +519,12 @@ void copy_buffer_simple(VkCommandBuffer copy_cmd, VkBuffer src_buf, int src_offs
 
 // TODO: Custom allocator to use with both glypshets and grids
 
-int Vulkan::upload_glyphsets() {
-	
+int Vulkan::upload_glyphsets(Font_Handle fh, Font_Render font) {
+	return 0;
 }
 
 int Vulkan::upload_grids() {
-	
+	return 0;
 }
 
 int Vulkan::create_descriptor_set() {
@@ -706,12 +704,10 @@ int Vulkan::update_command_buffers() {
 			.extent = sf_caps.currentExtent
 		},
 		.clearValueCount = 1,
-		.pClearValues = &clear_values
+		.pClearValues = &clear_value
 	};
 
-	VkResult res = vkBeginCommandBuffer(draw_buffers, &cbuf_info);
-		FAIL_IF(res != VK_SUCCESS, "vkBeginCommandBuffer() %d failed (%d)\n", i, res)
-
+	vkBeginCommandBuffer(draw_buffer, &cbuf_info);
 	vkCmdBeginRenderPass(draw_buffer, &rp_info, VK_SUBPASS_CONTENTS_INLINE);
 
 	vkCmdBindDescriptorSets(draw_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pl_layout, 0, 1, &desc_set, 0, nullptr);
@@ -737,8 +733,7 @@ int Vulkan::update_command_buffers() {
 	}
 
 	vkCmdEndRenderPass(draw_buffer);
-	res = vkEndCommandBuffer(draw_buffer);
-		FAIL_IF(res != VK_SUCCESS, "vkEndCommandBuffer() %d failed (%d)\n", i, res)
+	vkEndCommandBuffer(draw_buffer);
 
 	wait_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
@@ -771,9 +766,9 @@ int Vulkan::recreate_swapchain(int width, int height) {
 	sf_caps.currentExtent.width = width;
 	sf_caps.currentExtent.height = height;
 
-	vkDestroyFramebuffer(device, &framebuffer, nullptr);
-	vkDestroyImageView(device, &swap_image_view, nullptr);
-	vkResetCommandBuffer(&draw_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+	vkDestroyFramebuffer(device, framebuffer, nullptr);
+	vkDestroyImageView(device, swap_image_view, nullptr);
+	vkResetCommandBuffer(draw_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
 
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
 
@@ -784,13 +779,13 @@ int Vulkan::recreate_swapchain(int width, int height) {
 	res = GetSwapchainImagesKHR(device, swapchain, &n_images, &swap_image);
 		FAIL_IF(res != VK_SUCCESS, "Could not acquire swapchain images (%d)\n", res)
 
-	res = create_swapchain_imageviews();
+	res = create_swapchain_imageview();
 		FAIL_IF(res != VK_SUCCESS, "vkCreateImageView() failed (%d)\n", res)
 
-	res = create_framebuffers();
+	res = create_framebuffer();
 		FAIL_IF(res != VK_SUCCESS, "vkCreateFramebuffer() failed (%d)\n", res)
 
-	failure = update_command_buffers();
+	int failure = update_command_buffers();
 	if (failure != 0)
 		return failure;
 
@@ -809,7 +804,7 @@ int Vulkan::render() {
 		FAIL_IF(res != VK_SUCCESS, "vkResetFences() failed (%d)\n", res)
 
 	submit_info.pCommandBuffers = &draw_buffer;
-	res = vkQueueSubmit(queue, 1, &submit_info, &fence);
+	res = vkQueueSubmit(queue, 1, &submit_info, draw_fence);
 		FAIL_IF(res != VK_SUCCESS, "vkQueueSubmit() failed (%d)\n", res)
 
 	present_info.pImageIndices = (u32*)&idx;

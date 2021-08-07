@@ -9,8 +9,13 @@
 
 #include "mash.h"
 
+#define DEFAULT_FONT_PATH "content/Monaco_Regular.ttf"
+
 typedef unsigned char u8;
 typedef unsigned int u32;
+
+static Font_Handle font_face;
+static Font_Render font_render;
 
 const char **get_required_instance_extensions(u32 *n_inst_exts) {
 	return glfwGetRequiredInstanceExtensions(n_inst_exts);
@@ -52,6 +57,8 @@ std::unique_ptr<char[]> load_shader_spv(VkShaderModuleCreateInfo& shader, const 
 }
 
 int start_app(Vulkan& vk, GLFWwindow *window) {
+	int res = vk.upload_glyphsets()
+
 	res = vk.create_descriptor_set();
 	if (res != 0) return res;
 
@@ -80,15 +87,24 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 }
 
 int main(int argc, char **argv) {
+	atexit([](){ft_quit();});
+
+	font_face = load_font_face(DEFAULT_FONT_PATH);
+	if (!font)
+		return 1;
+
+	// TODO: Use system DPI
+	font_render = size_up_font_render(font, 10, 96, 96);
+
 	VkShaderModuleCreateInfo vertex_buf, fragment_buf;
 
 	std::unique_ptr<char[]> vertex_uptr = load_shader_spv(vertex_buf, "vertex.spv");
 	if (!vertex_uptr)
-		return 1;
+		return 2;
 
 	std::unique_ptr<char[]> fragment_uptr = load_shader_spv(fragment_buf, "fragment.spv");
 	if (!fragment_uptr)
-		return 1;
+		return 2;
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -105,14 +121,14 @@ int main(int argc, char **argv) {
 	if (!window) {
 		fprintf(stderr, "Failed to create GLFW window\n");
 		glfwTerminate();
-		return -1;
+		return 3;
 	}
 
 	Vulkan vk;
 	vk.glfw_monitor = (void*)monitor;
 	vk.glfw_window = (void*)window;
 
-	int res = init_vulkan(vk, compute_buf, width, height);
+	int res = init_vulkan(vk, vertex_buf, fragment_buf, width, height);
 	if (res == 0)
 		res = start_app(vk, window);
 

@@ -1,5 +1,6 @@
-#ifndef VULKAN_3D_H
-#define VULKAN_3D_H
+#pragma once
+
+#include "font.h"
 
 constexpr unsigned long long MAX_64 = -1;
 
@@ -45,7 +46,7 @@ struct Vulkan {
 
 	VkImage swap_image;
 	VkImageView swap_image_view;
-	vkFramebuffer framebuffer;
+	VkFramebuffer framebuffer;
 	VkCommandBuffer draw_buffer;
 	VkFence draw_fence;
 
@@ -102,8 +103,7 @@ struct Vulkan {
 	}
 	void DestroyDebugUtilsMessenger(VkInstance instance, VkDebugUtilsMessengerEXT callback, const VkAllocationCallbacks* pAllocator) {
 		auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)khr_table[ID_DestroyDebugUtilsMessenger];
-		if (func)
-			func(instance, callback, pAllocator);
+		if (func) func(instance, callback, pAllocator);
 	}
 
 	VkResult CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSwapchainKHR* pSwapchain) {
@@ -111,8 +111,7 @@ struct Vulkan {
 	}
 	void DestroySwapchainKHR(VkDevice device, VkSwapchainKHR swapchain, const VkAllocationCallbacks* pAllocator) {
 		auto func = (PFN_vkDestroySwapchainKHR)khr_table[ID_DestroySwapchain];
-		if (func)
-			func(device, swapchain, pAllocator);
+		if (func) func(device, swapchain, pAllocator);
 	}
 	VkResult GetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR swapchain, uint32_t* pSwapchainImageCount, VkImage* pSwapchainImages) {
 		return ((PFN_vkGetSwapchainImagesKHR)khr_table[ID_GetSwapchainImages])(device, swapchain, pSwapchainImageCount, pSwapchainImages);
@@ -139,6 +138,9 @@ struct Vulkan {
 	void create_fences();
 	VkResult create_descriptor_pool();
 
+	int upload_glyphsets(Font_Handle fh, Font_Render font);
+	int upload_grids();
+
 	int create_descriptor_set();
 	int construct_pipeline();
 	int update_command_buffers();
@@ -153,4 +155,3 @@ VkResult create_window_surface(VkInstance& instance, void *window, VkSurfaceKHR 
 
 int init_vulkan(Vulkan& vk, VkShaderModuleCreateInfo& vert_shader_buf, VkShaderModuleCreateInfo& frag_shader_buf, int width, int height);
 
-#endif

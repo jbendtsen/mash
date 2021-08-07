@@ -1,6 +1,6 @@
 #version 450
 
-const uint N_CHAR_GLYPHS = 384;
+const uint N_GLYPHS = 384;
 
 struct Cell {
 	uint glyph;
@@ -47,8 +47,11 @@ void main() {
 	uint cell_w = params.cell_size.x;
 	uvec2 line = uvec2(view_pos.y / params.cell_size.y, view_pos.y % params.cell_size.y);
 	// it makes sense later trust me
-	row[0] = params.grid_cell_offset + row[0] * params.view_size.x;
-	row[1] *= cell_w;
+	line[0] = params.grid_cell_offset + line[0] * params.view_size.x;
+	line[1] *= cell_w;
+
+	uint bar_h   = 1 + (params.cell_size.y / 15);
+	uint bar_mid = (params.cell_size.y - bar_h) / 2;
 
 	uint x_left  = view_pos.x - params.glyph_overlap_w;
 	uint x_right = view_pos.x + params.glyph_overlap_w;
@@ -59,27 +62,28 @@ void main() {
 	float value_right = 0.0;
 	float value_left = 0.0;
 
-	{
-		uint cell_idx = row[0] + right[0];
-		uint pos = row[1] + right[1];
+	uint cell_idx = line[0] + right[0];
 
+	uint modifier = grid[cell_idx].modifier;
+	uint top = modifier * bar_mid;
+	if (modifier > 0 && line[1] >= top && line[1] < top + bar_h) {
+		value_right = 1.0;
+	}
+	else {
+		uint pos = line[1] + right[1];
 		value_right = get_glyph_value(grid[cell_idx].glyph, pos);
 
-		uint modifier = grid[cell_idx].modifier;
-		if (modifier != 0)
-			value_right += get_glyph_value(N_CHAR_GLYPHS - 1 + modifier, pos);
-	}
+		if (left[0] >= 0 && left[0] != right[0]) {
+			uint left_cell_idx = line[0] + left[0];
+			uint left_pos = line[1] + left[1];
 
-	if (left[0] >= 0 && left[0] != right[0]) {
-		uint cell_idx = row[0] + left[0];
-		uint pos = row[1] + left[1];
-
-		value_left = get_glyph_value(grid[cell_idx].glyph, pos);
+			value_left = get_glyph_value(grid[left_cell_idx].glyph, left_pos);
+		}
 	}
 
 	vec3 back = get_color(grid[cell].background);
 	vec3 fore = get_color(grid[cell].foreground);
 
-	float lum = clamp(value[0] + value[1], 0.0, 1.0);
+	float lum = clamp(value_right + value_left, 0.0, 1.0);
 	outColor = vec4(mix(back, fore, lum), 1.0);
 }
