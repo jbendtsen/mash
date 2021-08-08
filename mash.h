@@ -1,21 +1,86 @@
 #pragma once
 
 #include "font.h"
+#include <cstdint>
 
-constexpr unsigned long long MAX_64 = -1;
+constexpr uint64_t MAX_64 = -1;
 
-constexpr int ID_GetPhysicalDeviceSurfaceSupport = 0;
-constexpr int ID_GetPhysicalDeviceSurfaceCapabilities = 1;
-constexpr int ID_GetPhysicalDeviceSurfaceFormats = 2;
-constexpr int ID_CreateDebugUtilsMessenger = 3;
-constexpr int ID_DestroyDebugUtilsMessenger = 4;
-constexpr int ID_CreateSwapchain = 5;
-constexpr int ID_DestroySwapchain = 6;
-constexpr int ID_GetSwapchainImages = 7;
-constexpr int ID_AcquireNextImage = 8;
-constexpr int ID_QueuePresent = 9;
+struct Highlighter {
+	constexpr int N_COLORS = 32;
+	uint32_t colors[N_COLORS];
+};
 
-constexpr int N_KHR_IDS = 10;
+struct Text {
+	char *data;
+	int64_t total_size;
+
+	int64_t file_begin;
+	int64_t lines_down;
+
+	int64_t *newlines;
+	int nl_capacity;
+	int nl_size;
+
+	void enumerate_newlines();
+};
+
+struct Cell {
+	uint32_t glyph;
+	uint32_t modifier;
+	uint32_t foreground;
+	uint32_t background;
+};
+
+struct Grid {
+	int rows;
+	int cols;
+	int64_t row_offset;
+	int64_t col_offset;
+
+	void render_into(Text& text, Cell *cells, Highlighter& syntax);
+};
+
+struct View {
+	Grid *grid;
+	Text *text;
+	Highlighter *highlighter;
+};
+
+struct uvec2 {
+	uint32_t x, y;
+};
+
+struct View_Params {
+	uvec2 view_origin;
+	uvec2 view_size;
+	uvec2 cell_size;
+	uint32_t grid_cell_offset;
+	uint32_t glyphset_byte_offset;
+	uint32_t glyph_overlap_w;
+};
+
+struct Memory_Pool {
+	VkDeviceMemory dst_mem;
+	VkDeviceMemory src_mem;
+	VkBuffer dst_buf;
+	VkBuffer src_buf;
+	int size;
+	VkResult result;
+};
+
+enum {
+	ID_GetPhysicalDeviceSurfaceSupport = 0,
+	ID_GetPhysicalDeviceSurfaceCapabilities,
+	ID_GetPhysicalDeviceSurfaceFormats,
+	ID_CreateDebugUtilsMessenger,
+	ID_DestroyDebugUtilsMessenger,
+	ID_CreateSwapchain,
+	ID_DestroySwapchain,
+	ID_GetSwapchainImages,
+	ID_AcquireNextImage,
+	ID_QueuePresent,
+	N_KHR_IDS
+};
 
 struct Vulkan {
 	const VkImageUsageFlags img_usage =
@@ -124,8 +189,8 @@ struct Vulkan {
 	}
 
 	void close();
-	VkResult create_instance(const char *app_name, const char *engine_name, const char **req_inst_exts, unsigned int n_inst_exts);
-	VkResult create_device(const char **dev_exts, unsigned int n_inst_exts);
+	VkResult create_instance(const char *app_name, const char *engine_name, const char **req_inst_exts, uint32_t n_inst_exts);
+	VkResult create_device(const char **dev_exts, uint32_t n_inst_exts);
 	int load_khr_extensions();
 	VkResult setup_validation();
 	int select_bgra8_surface_format();
@@ -138,8 +203,8 @@ struct Vulkan {
 	void create_fences();
 	VkResult create_descriptor_pool();
 
-	int upload_glyphsets(Font_Handle fh, Font_Render font);
-	int upload_grids();
+	int upload_glyphsets(Font_Handle fh, Font_Render *renders, int n_renders);
+	int render_and_upload_views(View *views, int n_views);
 
 	int create_descriptor_set();
 	int construct_pipeline();
@@ -150,7 +215,7 @@ struct Vulkan {
 	int render();
 };
 
-const char **get_required_instance_extensions(unsigned int *n_inst_exts);
+const char **get_required_instance_extensions(uint32_t *n_inst_exts);
 VkResult create_window_surface(VkInstance& instance, void *window, VkSurfaceKHR *surface);
 
 int init_vulkan(Vulkan& vk, VkShaderModuleCreateInfo& vert_shader_buf, VkShaderModuleCreateInfo& frag_shader_buf, int width, int height);

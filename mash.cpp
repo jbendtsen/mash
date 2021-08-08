@@ -11,11 +11,11 @@
 
 #define DEFAULT_FONT_PATH "content/Monaco_Regular.ttf"
 
-typedef unsigned char u8;
-typedef unsigned int u32;
-
 static Font_Handle font_face;
 static Font_Render font_render;
+
+static Text text;
+static Highlighter syntax;
 
 const char **get_required_instance_extensions(u32 *n_inst_exts) {
 	return glfwGetRequiredInstanceExtensions(n_inst_exts);
@@ -57,7 +57,22 @@ std::unique_ptr<char[]> load_shader_spv(VkShaderModuleCreateInfo& shader, const 
 }
 
 int start_app(Vulkan& vk, GLFWwindow *window) {
-	int res = vk.upload_glyphsets()
+	Grid grid = {
+		.rows = (vk.wnd_height + font_render.glyph_h - 1) / font_render.glyph_h,
+		.cols = (vk.wnd_width + font_render.glyph_w - 1) / font_render.glyph_w,
+	};
+
+	View view = {
+		.grid = &grid,
+		.text = &text,
+		.highlighter = &syntax
+	};
+
+	int res = vk.upload_glyphsets(font_face, &font_render, 1);
+	if (res != 0) return res;
+
+	res = vk.render_and_upload_views(&view, 1);
+	if (res != 0) return res;
 
 	res = vk.create_descriptor_set();
 	if (res != 0) return res;
@@ -96,6 +111,9 @@ int main(int argc, char **argv) {
 	// TODO: Use system DPI
 	font_render = size_up_font_render(font, 10, 96, 96);
 
+	syntax.colors[0] = 0x303030ff;
+	syntax.colors[1] = 0xf0f0f0ff;
+
 	VkShaderModuleCreateInfo vertex_buf, fragment_buf;
 
 	std::unique_ptr<char[]> vertex_uptr = load_shader_spv(vertex_buf, "vertex.spv");
@@ -105,6 +123,18 @@ int main(int argc, char **argv) {
 	std::unique_ptr<char[]> fragment_uptr = load_shader_spv(fragment_buf, "fragment.spv");
 	if (!fragment_uptr)
 		return 2;
+
+	int fd = open("vulkan.cpp", O_RDONLY);
+	struct stat st;
+	fstat(fd, &st);
+	int64_t size = st.st_size;
+
+	text = {
+		.data = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0),
+		.total_size = size
+	};
+
+	text.enumerate_newlines();
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);

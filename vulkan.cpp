@@ -517,13 +517,71 @@ void copy_buffer_simple(VkCommandBuffer copy_cmd, VkBuffer src_buf, int src_offs
 	vkCmdCopyBuffer(copy_cmd, src_buf, dst_buf, 1, &copy_info);
 }
 
-// TODO: Custom allocator to use with both glypshets and grids
+// TODO: Custom allocator to use with both glyphsets and grids
 
-int Vulkan::upload_glyphsets(Font_Handle fh, Font_Render font) {
+Memory_Pool allocate_gpu_memory(int size) {
+	Memory_Pool pool = {0};
+
+	VkBufferCreateInfo src_buf_info = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = (VkDeviceSize)size,
+		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+	};
+
+	res = vkCreateBuffer(device, &src_buf_info, nullptr, &src_buf);
+		FAIL_IF(res != VK_SUCCESS, "Failed to create host buffer [vkCreateBuffer() -> %d]\n", res)
+
+	VkMemoryRequirements src_mem_reqs;
+	vkGetBufferMemoryRequirements(device, src_buf, &src_mem_reqs);
+
+	int src_mem_type = get_memory_type(gpu_mem, src_mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		FAIL_IF(src_mem_type < 0, "Could not find a suitable memory type for the host buffer\n")
+
+	src_allocd = src_mem_reqs.size;
+
+	VkMemoryAllocateInfo src_alloc_info = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = src_mem_reqs.size,
+		.memoryTypeIndex = (u32)src_mem_type
+	};
+
+	res = vkAllocateMemory(device, &src_alloc_info, nullptr, &src_mem);
+		FAIL_IF(res != VK_SUCCESS, "Could not allocate host memory [vkAllocateMemory() -> %d]\n", res)
+
+	res = vkMapMemory(device, src_mem, 0, src_alloc_info.allocationSize, 0, &staging_area);
+		FAIL_IF(res != VK_SUCCESS, "Could not map host memory [vkMapMemory() -> %d]\n", res)
+
+	res = vkBindBufferMemory(device, src_buf, src_mem, 0);
+		FAIL_IF(res != VK_SUCCESS, "Could not bind host memory [vkBindBufferMemory() -> %d]\n", res)
+
+	VkBufferCreateInfo dst_buf_info = src_buf_info;
+	dst_buf_info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+	VkBuffer dst_buf;
+	res = vkCreateBuffer(device, &dst_buf_info, nullptr, &dst_buf);
+		FAIL_IF(res != VK_SUCCESS, "Failed to create device buffer [vkCreateBuffer() -> %d]\n", res)
+
+	VkMemoryRequirements dst_mem_reqs;
+	vkGetBufferMemoryRequirements(device, dst_buf, &dst_mem_reqs);
+
+	int dst_mem_type = get_memory_type(gpu_mem, dst_mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		FAIL_IF(dst_mem_type < 0, "Could not find a suitable memory type for the device buffer\n")
+
+	VkMemoryAllocateInfo dst_alloc_info = src_alloc_info;
+	dst_alloc_info.allocationSize = dst_mem_reqs.size;
+	dst_alloc_info.memoryTypeIndex = (u32)dst_mem_type;
+
+	res = vkAllocateMemory(device, &dst_alloc_info, nullptr, &dst_mem);
+		FAIL_IF(res != VK_SUCCESS, "Could not allocate device memory [vkAllocateMemory() -> %d]\n", res)
+}
+
+int Vulkan::upload_glyphsets(Font_Handle fh, Font_Render *renders, int n_renders) {
+	if (!glyphset_buffer)
+		
 	return 0;
 }
 
-int Vulkan::upload_grids() {
+int Vulkan::render_and_upload_views(View *views, int n_views) {
 	return 0;
 }
 

@@ -1,27 +1,5 @@
 #version 450
 
-/*
-struct Params {
-	uvec2 view_origin;
-	uvec2 view_size;
-	uvec2 cell_size;
-	uint grid_cell_offset;
-	uint glyphset_byte_offset;
-};
-
-layout (binding = 0) uniform PARAMS_LIST {
-	Params params_list[];
-};
-
-layout (location = 0) in SCREEN {
-	vec2 screen_size_f;
-};
-
-layout (location = 0) out PARAMS {
-	Params cur_params;
-};
-*/
-
 out gl_PerVertex {
 	vec4 gl_Position;
 };
