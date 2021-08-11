@@ -60,10 +60,11 @@ struct View_Params {
 };
 
 struct Memory_Pool {
-	VkDeviceMemory dst_mem;
-	VkDeviceMemory src_mem;
-	VkBuffer dst_buf;
-	VkBuffer src_buf;
+	VkDeviceMemory dev_mem;
+	VkDeviceMemory host_mem;
+	VkBuffer dev_buf;
+	VkBuffer host_buf;
+	uint8_t *staging_area;
 	int size;
 	VkResult result;
 };
@@ -127,14 +128,8 @@ struct Vulkan {
 	VkDescriptorSetLayout ds_layout = {0};
 	VkDescriptorSet desc_set = {0};
 
-	VkDeviceMemory src_mem = {0};
-	VkBuffer src_buf = {0};
-	void *staging_area = nullptr;
-	int stage_total_size = 0;
-	int stage_vertex_offset = 0;
-	int stage_vertex_size = 0;
-	int stage_index_offset = 0;
-	int stage_index_size = 0;
+	Memory_Pool glyphset_pool = {0};
+	Memory_Pool grids_pool = {0};
 
 	VkDeviceMemory dst_mem = {0};
 	VkBuffer mvp_buf = {0};

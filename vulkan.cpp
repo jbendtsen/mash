@@ -16,6 +16,13 @@ if (cond) { \
 	return __LINE__; \
 }
 
+#define FAIL_IF_STRUCT(cond, args...) \
+prev_failif_line = __LINE__; \
+if (cond) { \
+	fprintf(stderr, args); \
+	return {0}; \
+}
+
 #define DESTROY(func, handle, object, allocator) \
 if (object) { \
 	func(handle, object, allocator); \
@@ -492,22 +499,6 @@ int get_memory_type(VkPhysicalDeviceMemoryProperties& gpu_mem, u32 mem_req_type_
 	return -1;
 }
 
-int place_buffer(VkDevice& device, VkDeviceMemory& memory, int offset, int size, int type, const char *name, VkBuffer *buf) {
-	VkBufferCreateInfo buf_info = {
-		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = (VkDeviceSize)size,
-		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | (VkBufferUsageFlags)type
-	};
-
-	VkResult res = vkCreateBuffer(device, &buf_info, nullptr, buf);
-		FAIL_IF(res != VK_SUCCESS, "Failed to create %s buffer [vkCreateBuffer() -> %d]\n", name, res)
-
-	res = vkBindBufferMemory(device, *buf, memory, offset);
-		FAIL_IF(res != VK_SUCCESS, "Failed to bind %s buffer to device memory [vkBindBufferMemory() -> %d]\n", name, res)
-
-	return 0;
-}
-
 void copy_buffer_simple(VkCommandBuffer copy_cmd, VkBuffer src_buf, int src_offset, VkBuffer dst_buf, int dst_offset, int size) {
 	VkBufferCopy copy_info = {
 		.srcOffset = (VkDeviceSize)src_offset,
@@ -522,67 +513,130 @@ void copy_buffer_simple(VkCommandBuffer copy_cmd, VkBuffer src_buf, int src_offs
 Memory_Pool allocate_gpu_memory(int size) {
 	Memory_Pool pool = {0};
 
-	VkBufferCreateInfo src_buf_info = {
+	VkBufferCreateInfo host_buf_info = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = (VkDeviceSize)size,
 		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
 	};
 
-	res = vkCreateBuffer(device, &src_buf_info, nullptr, &src_buf);
-		FAIL_IF(res != VK_SUCCESS, "Failed to create host buffer [vkCreateBuffer() -> %d]\n", res)
+	res = vkCreateBuffer(device, &src_buf_info, nullptr, &pool.host_buf);
+		FAIL_IF_STRUCT(res != VK_SUCCESS, "Failed to create host buffer [vkCreateBuffer() -> %d]\n", res)
 
-	VkMemoryRequirements src_mem_reqs;
-	vkGetBufferMemoryRequirements(device, src_buf, &src_mem_reqs);
+	VkMemoryRequirements host_mem_reqs;
+	vkGetBufferMemoryRequirements(device, pool.host_buf, &host_mem_reqs);
 
-	int src_mem_type = get_memory_type(gpu_mem, src_mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		FAIL_IF(src_mem_type < 0, "Could not find a suitable memory type for the host buffer\n")
+	int host_mem_type = get_memory_type(gpu_mem, host_mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		FAIL_IF_STRUCT(host_mem_type < 0, "Could not find a suitable memory type for the host buffer\n")
 
-	src_allocd = src_mem_reqs.size;
+	pool.size = host_mem_reqs.size;
 
-	VkMemoryAllocateInfo src_alloc_info = {
+	VkMemoryAllocateInfo host_alloc_info = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = src_mem_reqs.size,
-		.memoryTypeIndex = (u32)src_mem_type
+		.allocationSize = host_mem_reqs.size,
+		.memoryTypeIndex = (uint32_t)host_mem_type
 	};
 
-	res = vkAllocateMemory(device, &src_alloc_info, nullptr, &src_mem);
-		FAIL_IF(res != VK_SUCCESS, "Could not allocate host memory [vkAllocateMemory() -> %d]\n", res)
+	res = vkAllocateMemory(device, &host_alloc_info, nullptr, &pool.host_mem);
+		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not allocate host memory [vkAllocateMemory() -> %d]\n", res)
 
-	res = vkMapMemory(device, src_mem, 0, src_alloc_info.allocationSize, 0, &staging_area);
-		FAIL_IF(res != VK_SUCCESS, "Could not map host memory [vkMapMemory() -> %d]\n", res)
+	res = vkMapMemory(device, pool.host_mem, 0, host_alloc_info.allocationSize, 0, &staging_area);
+		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not map host memory [vkMapMemory() -> %d]\n", res)
 
-	res = vkBindBufferMemory(device, src_buf, src_mem, 0);
-		FAIL_IF(res != VK_SUCCESS, "Could not bind host memory [vkBindBufferMemory() -> %d]\n", res)
+	res = vkBindBufferMemory(device, pool.host_buf, pool.host_mem, 0);
+		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not bind host memory [vkBindBufferMemory() -> %d]\n", res)
 
-	VkBufferCreateInfo dst_buf_info = src_buf_info;
+	VkBufferCreateInfo dev_buf_info = dev_buf_info;
 	dst_buf_info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
-	VkBuffer dst_buf;
-	res = vkCreateBuffer(device, &dst_buf_info, nullptr, &dst_buf);
-		FAIL_IF(res != VK_SUCCESS, "Failed to create device buffer [vkCreateBuffer() -> %d]\n", res)
+	res = vkCreateBuffer(device, &dev_buf_info, nullptr, &pool.dev_buf);
+		FAIL_IF_STRUCT(res != VK_SUCCESS, "Failed to create device buffer [vkCreateBuffer() -> %d]\n", res)
 
-	VkMemoryRequirements dst_mem_reqs;
-	vkGetBufferMemoryRequirements(device, dst_buf, &dst_mem_reqs);
+	VkMemoryRequirements dev_mem_reqs;
+	vkGetBufferMemoryRequirements(device, pooldev_buf, &dev_mem_reqs);
 
-	int dst_mem_type = get_memory_type(gpu_mem, dst_mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		FAIL_IF(dst_mem_type < 0, "Could not find a suitable memory type for the device buffer\n")
+	int dev_mem_type = get_memory_type(gpu_mem, dev_mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		FAIL_IF_STRUCT(dev_mem_type < 0, "Could not find a suitable memory type for the device buffer\n")
 
-	VkMemoryAllocateInfo dst_alloc_info = src_alloc_info;
-	dst_alloc_info.allocationSize = dst_mem_reqs.size;
-	dst_alloc_info.memoryTypeIndex = (u32)dst_mem_type;
+	VkMemoryAllocateInfo dev_alloc_info = host_alloc_info;
+	dev_alloc_info.allocationSize = dev_mem_reqs.size;
+	dev_alloc_info.memoryTypeIndex = (uint32_t)dev_mem_type;
 
-	res = vkAllocateMemory(device, &dst_alloc_info, nullptr, &dst_mem);
-		FAIL_IF(res != VK_SUCCESS, "Could not allocate device memory [vkAllocateMemory() -> %d]\n", res)
+	res = vkAllocateMemory(device, &dev_alloc_info, nullptr, &pool.dev_mem);
+		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not allocate device memory [vkAllocateMemory() -> %d]\n", res)
+
+	return pool;
+}
+
+int Vulkan::push_to_gpu(Memory_Pool& pool, int offset, int size) {
+	VkCommandBufferAllocateInfo cbuf_alloc_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = cmd_pool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+	VkCommandBuffer copy_cmd;
+	vkAllocateCommandBuffers(device, &cbuf_alloc_info, &copy_cmd);
+
+	VkCommandBufferBeginInfo beg_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+	};
+	vkBeginCommandBuffer(copy_cmd, &beg_info);
+
+	VkBufferCopy copy_info = {
+		.srcOffset = (VkDeviceSize)offset,
+		.dstOffset = (VkDeviceSize)offset,
+		.size = (VkDeviceSize)size
+	};
+	vkCmdCopyBuffer(copy_cmd, pool.host_buf, pool.dev_buf, 1, &copy_info);
+
+	vkEndCommandBuffer(copy_cmd);
+
+	res = vkResetFences(device, 1, &misc_fence);
+		FAIL_IF(res != VK_SUCCESS, "vkResetFences() failed (%d)\n", res)
+
+	VkSubmitInfo submit_info = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &copy_cmd
+	};
+	res = vkQueueSubmit(queue, 1, &submit_info, misc_fence);
+		FAIL_IF(res != VK_SUCCESS, "vkQueueSubmit() failed (%d)\n", res)
+
+	res = vkWaitForFences(device, 1, &misc_fence, VK_TRUE, MAX_64);
+		FAIL_IF(res != VK_SUCCESS, "vkWaitForFences() failed (%d)\n", res)
+
+	vkFreeCommandBuffers(device, cmd_pool, 1, &copy_cmd);
+
+	// if pipeline already set up:
+	//     vkUpdateDescriptorSets() (MVP, etc.)
+
+	return 0;
 }
 
 int Vulkan::upload_glyphsets(Font_Handle fh, Font_Render *renders, int n_renders) {
-	if (!glyphset_buffer)
-		
-	return 0;
+	if (!glyphset_pool.size) {
+		glyphset_pool = allocate_gpu_memory(GLYPHSET_POOL_SIZE);
+		if (!glyphset_pool.size)
+			return __LINE__;
+	}
+
+	renders[0].buf = glyphset_pool.staging_area;
+	make_font_render(fh, renders[0]);
+
+	return push_to_gpu(glyphset_pool, 0, renders[0].total_size);
 }
 
 int Vulkan::render_and_upload_views(View *views, int n_views) {
-	return 0;
+	if (!grids_pool.size) {
+		grids_pool = allocate_gpu_memory(GRIDS_POOL_SIZE);
+		if (!grids_pool.size)
+			return __LINE__;
+	}
+
+	renders[0].buf = glyphset_pool.staging_area;
+	make_font_render(fh, renders[0]);
+
+	return push_to_gpu(grids_pool, 0, renders[0].total_size);
 }
 
 int Vulkan::create_descriptor_set() {
