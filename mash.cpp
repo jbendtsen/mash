@@ -15,11 +15,11 @@
 
 #define DEFAULT_FONT_PATH "content/Monaco_Regular.ttf"
 
-static Font_Handle font_face;
-static Font_Render font_render;
+static Font_Handle font_face = nullptr;
+static Font_Render font_render = {0};
 
-static Text text;
-static Highlighter syntax;
+static Text text = {0};
+static Highlighter syntax = {0};
 
 const char **get_required_instance_extensions(uint32_t *n_inst_exts) {
 	return glfwGetRequiredInstanceExtensions(n_inst_exts);
@@ -85,16 +85,24 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 	res = vk.construct_pipeline();
 	if (res != 0) return res;
 
+	bool needs_resubmit = true;
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwWaitEventsTimeout(0.5);
 
 		int w, h;
 		glfwGetFramebufferSize(window, &w, &h);
-		if (w != vk.wnd_width || h != vk.wnd_height)
+		if (w != vk.wnd_width || h != vk.wnd_height) {
 			vk.recreate_swapchain(w, h);
+			needs_resubmit = true;
+		}
 
-		res = vk.update_command_buffers();
-		if (res != 0) return res;
+		if (needs_resubmit) {
+			res = vk.update_command_buffers();
+			if (res != 0) return res;
+
+			needs_resubmit = false;
+		}
 
 		res = vk.render();
 	}
@@ -116,7 +124,7 @@ int main(int argc, char **argv) {
 	// TODO: Use system DPI
 	font_render = size_up_font_render(font_face, 10, 96, 96);
 
-	syntax.colors[0] = 0x303030ff;
+	syntax.colors[0] = 0x080808ff;
 	syntax.colors[1] = 0xf0f0f0ff;
 
 	VkShaderModuleCreateInfo vertex_buf, fragment_buf;
@@ -165,6 +173,7 @@ int main(int argc, char **argv) {
 	if (res == 0)
 		res = start_app(vk, window);
 
+	munmap(text.data, text.total_size);
 	close(fd);
 
 	vk.close();

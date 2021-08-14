@@ -15,6 +15,7 @@ struct View_Params {
 	uvec2 view_origin;
 	uvec2 view_size;
 	uvec2 cell_size;
+	uint32_t columns;
 	uint32_t grid_cell_offset;
 	uint32_t glyphset_byte_offset;
 	uint32_t glyph_overlap_w;

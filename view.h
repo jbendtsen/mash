@@ -9,7 +9,7 @@ struct Text {
 	char *data;
 	int64_t total_size;
 
-	int64_t file_begin;
+	int64_t file_offset;
 	int64_t lines_down;
 
 	int64_t *newlines;

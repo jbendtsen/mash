@@ -44,6 +44,7 @@ void Vulkan::close() {
 	DESTROY(vkDestroySemaphore, device, sema_present, nullptr)
 	DESTROY(vkDestroySemaphore, device, sema_render, nullptr)
 
+	DESTROY(vkDestroyShaderModule, device, vert_shader, nullptr)
 	DESTROY(vkDestroyShaderModule, device, frag_shader, nullptr)
 
 	DESTROY(vkDestroyFence, device, draw_fence, nullptr)
@@ -487,7 +488,7 @@ Memory_Pool Vulkan::allocate_gpu_memory(int size) {
 	VkBufferCreateInfo host_buf_info = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = (VkDeviceSize)size,
-		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
 	};
 
 	VkResult res = vkCreateBuffer(device, &host_buf_info, nullptr, &pool.host_buf);
@@ -517,7 +518,7 @@ Memory_Pool Vulkan::allocate_gpu_memory(int size) {
 		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not bind host memory [vkBindBufferMemory() -> %d]\n", res)
 
 	VkBufferCreateInfo dev_buf_info = host_buf_info;
-	dev_buf_info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	dev_buf_info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	res = vkCreateBuffer(device, &dev_buf_info, nullptr, &pool.dev_buf);
 		FAIL_IF_STRUCT(res != VK_SUCCESS, "Failed to create device buffer [vkCreateBuffer() -> %d]\n", res)
@@ -635,7 +636,8 @@ int Vulkan::render_and_upload_views(View *views, int n_views, Font_Render *rende
 		view_params[i] = {
 			.view_origin = {0, 0},
 			.view_size = {(uint32_t)wnd_width, (uint32_t)wnd_height},
-			.cell_size = {(uint32_t)r->get_full_glyph_width(), (uint32_t)r->glyph_h},
+			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
+			.columns = (uint32_t)v.grid->cols,
 			.grid_cell_offset = 0,
 			.glyphset_byte_offset = 0,
 			.glyph_overlap_w = (uint32_t)r->overlap_w
@@ -822,7 +824,7 @@ int Vulkan::update_command_buffers() {
 			.dstSet = desc_set,
 			.dstBinding = 0,
 			.descriptorCount = 1,
-			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 			.pBufferInfo = &grid_buf_info
 		},
 		{
@@ -830,7 +832,7 @@ int Vulkan::update_command_buffers() {
 			.dstSet = desc_set,
 			.dstBinding = 1,
 			.descriptorCount = 1,
-			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 			.pBufferInfo = &glyphset_buf_info
 		}
 	};
@@ -948,7 +950,7 @@ int Vulkan::render() {
 		FAIL_IF(res != VK_SUCCESS, "vkAcquireNextImageKHR() failed (%d)\n", res)
 
 	res = vkWaitForFences(device, 1, &draw_fence, VK_TRUE, -1);
-		FAIL_IF(res != VK_SUCCESS, "vkWaitForFences() failed (%d)\n", res)
+			FAIL_IF(res != VK_SUCCESS, "vkWaitForFences() failed (%d)\n", res)
 
 	res = vkResetFences(device, 1, &draw_fence);
 		FAIL_IF(res != VK_SUCCESS, "vkResetFences() failed (%d)\n", res)
