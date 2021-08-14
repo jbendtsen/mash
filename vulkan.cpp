@@ -2,10 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vector>
 #include "mash.h"
 
-typedef unsigned int u32;
+typedef unsigned int uint32_t;
 
 int prev_failif_line = 0;
 
@@ -60,12 +59,10 @@ void Vulkan::close() {
 	DESTROY(vkDestroyPipeline, device, pipeline, nullptr)
 	DESTROY(vkDestroyRenderPass, device, renderpass, nullptr)
 
+	grids_pool.close(device);
+	glyphset_pool.close(device);
+
 	DESTROY(DestroySwapchainKHR, device, swapchain, nullptr)
-
-	vkUnmapMemory(device, src_mem);
-
-	DESTROY(vkFreeMemory, device, dst_mem, nullptr)
-	DESTROY(vkFreeMemory, device, src_mem, nullptr)
 
 	DESTROY(vkDestroyFence, device, misc_fence, nullptr)
 
@@ -77,7 +74,7 @@ void Vulkan::close() {
 	vkDestroyInstance(instance, nullptr);
 }
 
-VkResult Vulkan::create_instance(const char *app_name, const char *engine_name, const char **req_inst_exts, u32 n_inst_exts) {
+VkResult Vulkan::create_instance(const char *app_name, const char *engine_name, const char **req_inst_exts, uint32_t n_inst_exts) {
 	VkApplicationInfo app_info = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pApplicationName = app_name,
@@ -102,7 +99,7 @@ VkResult Vulkan::create_instance(const char *app_name, const char *engine_name, 
 }
 
 int find_graphics_queue(VkPhysicalDevice& gpu) {
-	u32 n_queues = 0;
+	uint32_t n_queues = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(gpu, &n_queues, nullptr);
 	if (n_queues == 0)
 		return -1;
@@ -121,11 +118,11 @@ int find_graphics_queue(VkPhysicalDevice& gpu) {
 	return queue_index;
 }
 
-VkResult Vulkan::create_device(const char **dev_exts, u32 n_dev_exts) {
+VkResult Vulkan::create_device(const char **dev_exts, uint32_t n_dev_exts) {
 	float priority = 0.0f;
 	VkDeviceQueueCreateInfo queue_info = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		.queueFamilyIndex = (u32)queue_index,
+		.queueFamilyIndex = (uint32_t)queue_index,
 		.queueCount = 1,
 		.pQueuePriorities = &priority
 	};
@@ -183,7 +180,7 @@ VkResult Vulkan::setup_validation() {
 }
 
 int Vulkan::select_bgra8_surface_format() {
-	u32 n_color_formats = 0;
+	uint32_t n_color_formats = 0;
 	VkResult res = GetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &n_color_formats, nullptr);
 	if (n_color_formats == 0 || res != VK_SUCCESS)
 		return -1;
@@ -260,7 +257,7 @@ int Vulkan::create_command_pool_and_draw_buffers() {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-		.queueFamilyIndex = (u32)queue_index
+		.queueFamilyIndex = (uint32_t)queue_index
 	};
 
 	VkResult res = vkCreateCommandPool(device, &cpool_info, nullptr, &cmd_pool);
@@ -373,27 +370,11 @@ void Vulkan::create_fences() {
 	vkCreateFence(device, &fence_info, nullptr, &draw_fence);
 }
 
-VkResult Vulkan::create_descriptor_pool() {
-	VkDescriptorPoolSize ps_info = {
-		.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		.descriptorCount = 1
-	};
-
-	VkDescriptorPoolCreateInfo dpool_info = {
-		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-		.maxSets = 1,
-		.poolSizeCount = 1,
-		.pPoolSizes = &ps_info
-	};
-
-	return vkCreateDescriptorPool(device, &dpool_info, nullptr, &dpool);
-}
-
 int init_vulkan(Vulkan& vk, VkShaderModuleCreateInfo& vert_shader_buf, VkShaderModuleCreateInfo& frag_shader_buf, int width, int height) {
 	vk.wnd_width = width;
 	vk.wnd_height = height;
 
-	u32 n_inst_exts = 0;
+	uint32_t n_inst_exts = 0;
 	const char **req_inst_exts = get_required_instance_extensions(&n_inst_exts);
 		FAIL_IF(!req_inst_exts, "Could not find any Vulkan extensions\n")
 
@@ -405,13 +386,13 @@ int init_vulkan(Vulkan& vk, VkShaderModuleCreateInfo& vert_shader_buf, VkShaderM
 	VkResult res = vk.create_instance("Mash", "No Engine", inst_exts, n_inst_exts);
 		FAIL_IF(res != VK_SUCCESS, "vkCreateInstance() failed (%d)\n", res)
 
-	u32 n_gpus = 1;
+	uint32_t n_gpus = 1;
 	res = vkEnumeratePhysicalDevices(vk.instance, &n_gpus, &vk.gpu);
 		FAIL_IF(res != VK_SUCCESS, "vkEnumeratePhysicalDevices() failed (%d)\n", res)
 
 	vkGetPhysicalDeviceMemoryProperties(vk.gpu, &vk.gpu_mem);
 
-	u32 n_dev_exts = 0;
+	uint32_t n_dev_exts = 0;
 	res = vkEnumerateDeviceExtensionProperties(vk.gpu, nullptr, &n_dev_exts, nullptr);
 		FAIL_IF(n_dev_exts <= 0 || res != VK_SUCCESS, "Could not find any Vulkan device extensions (found %d, error %d)\n", n_dev_exts, res)
 
@@ -432,6 +413,9 @@ int init_vulkan(Vulkan& vk, VkShaderModuleCreateInfo& vert_shader_buf, VkShaderM
 		FAIL_IF(vk.queue_index < 0, "Could not find a suitable graphics queue\n")
 
 	vkGetDeviceQueue(vk.device, vk.queue_index, 0, &vk.queue);
+
+	res = vkCreateShaderModule(vk.device, &vert_shader_buf, nullptr, &vk.vert_shader);
+		FAIL_IF(res != VK_SUCCESS, "vkCreateShaderModule() failed for vertex shader (%d)\n", res)
 
 	res = vkCreateShaderModule(vk.device, &frag_shader_buf, nullptr, &vk.frag_shader);
 		FAIL_IF(res != VK_SUCCESS, "vkCreateShaderModule() failed for fragment shader (%d)\n", res)
@@ -462,7 +446,7 @@ int init_vulkan(Vulkan& vk, VkShaderModuleCreateInfo& vert_shader_buf, VkShaderM
 	res = vk.create_swapchain();
 		FAIL_IF(res != VK_SUCCESS, "vkCreateSwapchainKHR() failed (%d)\n", res)
 
-	u32 n_images = 1;
+	uint32_t n_images = 1;
 	res = vk.GetSwapchainImagesKHR(vk.device, vk.swapchain, &n_images, &vk.swap_image);
 		FAIL_IF(n_images != 1 || res != VK_SUCCESS, "Could not acquire swapchain image (n_images=%d, res=%d)\n", n_images, res)
 
@@ -483,14 +467,10 @@ int init_vulkan(Vulkan& vk, VkShaderModuleCreateInfo& vert_shader_buf, VkShaderM
 		FAIL_IF(res != VK_SUCCESS, "Failed to create Vulkan semaphores\n")
 
 	vk.create_fences();
-
-	res = vk.create_descriptor_pool();
-		FAIL_IF(res != VK_SUCCESS, "vkCreateDescriptorPool() failed (%d)\n", res)
-
 	return 0;
 }
 
-int get_memory_type(VkPhysicalDeviceMemoryProperties& gpu_mem, u32 mem_req_type_bits, u32 mem_flags) {
+int get_memory_type(VkPhysicalDeviceMemoryProperties& gpu_mem, uint32_t mem_req_type_bits, uint32_t mem_flags) {
 	for (int i = 0; i < gpu_mem.memoryTypeCount; i++) {
 		if ((mem_req_type_bits & (1 << i)) && (gpu_mem.memoryTypes[i].propertyFlags & mem_flags) == mem_flags)
 			return i;
@@ -499,18 +479,9 @@ int get_memory_type(VkPhysicalDeviceMemoryProperties& gpu_mem, u32 mem_req_type_
 	return -1;
 }
 
-void copy_buffer_simple(VkCommandBuffer copy_cmd, VkBuffer src_buf, int src_offset, VkBuffer dst_buf, int dst_offset, int size) {
-	VkBufferCopy copy_info = {
-		.srcOffset = (VkDeviceSize)src_offset,
-		.dstOffset = (VkDeviceSize)dst_offset,
-		.size = (VkDeviceSize)size
-	};
-	vkCmdCopyBuffer(copy_cmd, src_buf, dst_buf, 1, &copy_info);
-}
-
 // TODO: Custom allocator to use with both glyphsets and grids
 
-Memory_Pool allocate_gpu_memory(int size) {
+Memory_Pool Vulkan::allocate_gpu_memory(int size) {
 	Memory_Pool pool = {0};
 
 	VkBufferCreateInfo host_buf_info = {
@@ -519,7 +490,7 @@ Memory_Pool allocate_gpu_memory(int size) {
 		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
 	};
 
-	res = vkCreateBuffer(device, &src_buf_info, nullptr, &pool.host_buf);
+	VkResult res = vkCreateBuffer(device, &host_buf_info, nullptr, &pool.host_buf);
 		FAIL_IF_STRUCT(res != VK_SUCCESS, "Failed to create host buffer [vkCreateBuffer() -> %d]\n", res)
 
 	VkMemoryRequirements host_mem_reqs;
@@ -539,20 +510,20 @@ Memory_Pool allocate_gpu_memory(int size) {
 	res = vkAllocateMemory(device, &host_alloc_info, nullptr, &pool.host_mem);
 		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not allocate host memory [vkAllocateMemory() -> %d]\n", res)
 
-	res = vkMapMemory(device, pool.host_mem, 0, host_alloc_info.allocationSize, 0, &staging_area);
+	res = vkMapMemory(device, pool.host_mem, 0, host_alloc_info.allocationSize, 0, (void**)&pool.staging_area);
 		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not map host memory [vkMapMemory() -> %d]\n", res)
 
 	res = vkBindBufferMemory(device, pool.host_buf, pool.host_mem, 0);
 		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not bind host memory [vkBindBufferMemory() -> %d]\n", res)
 
-	VkBufferCreateInfo dev_buf_info = dev_buf_info;
-	dst_buf_info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	VkBufferCreateInfo dev_buf_info = host_buf_info;
+	dev_buf_info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
 	res = vkCreateBuffer(device, &dev_buf_info, nullptr, &pool.dev_buf);
 		FAIL_IF_STRUCT(res != VK_SUCCESS, "Failed to create device buffer [vkCreateBuffer() -> %d]\n", res)
 
 	VkMemoryRequirements dev_mem_reqs;
-	vkGetBufferMemoryRequirements(device, pooldev_buf, &dev_mem_reqs);
+	vkGetBufferMemoryRequirements(device, pool.dev_buf, &dev_mem_reqs);
 
 	int dev_mem_type = get_memory_type(gpu_mem, dev_mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		FAIL_IF_STRUCT(dev_mem_type < 0, "Could not find a suitable memory type for the device buffer\n")
@@ -563,6 +534,9 @@ Memory_Pool allocate_gpu_memory(int size) {
 
 	res = vkAllocateMemory(device, &dev_alloc_info, nullptr, &pool.dev_mem);
 		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not allocate device memory [vkAllocateMemory() -> %d]\n", res)
+
+	res = vkBindBufferMemory(device, pool.dev_buf, pool.dev_mem, 0);
+		FAIL_IF_STRUCT(res != VK_SUCCESS, "Could not bind device memory [vkBindBufferMemory() -> %d]\n", res)
 
 	return pool;
 }
@@ -591,7 +565,7 @@ int Vulkan::push_to_gpu(Memory_Pool& pool, int offset, int size) {
 
 	vkEndCommandBuffer(copy_cmd);
 
-	res = vkResetFences(device, 1, &misc_fence);
+	VkResult res = vkResetFences(device, 1, &misc_fence);
 		FAIL_IF(res != VK_SUCCESS, "vkResetFences() failed (%d)\n", res)
 
 	VkSubmitInfo submit_info = {
@@ -626,20 +600,71 @@ int Vulkan::upload_glyphsets(Font_Handle fh, Font_Render *renders, int n_renders
 	return push_to_gpu(glyphset_pool, 0, renders[0].total_size);
 }
 
-int Vulkan::render_and_upload_views(View *views, int n_views) {
+int Vulkan::render_and_upload_views(View *views, int n_views, Font_Render *renders) {
 	if (!grids_pool.size) {
 		grids_pool = allocate_gpu_memory(GRIDS_POOL_SIZE);
 		if (!grids_pool.size)
 			return __LINE__;
 	}
 
-	renders[0].buf = glyphset_pool.staging_area;
-	make_font_render(fh, renders[0]);
+	Cell *cells = (Cell*)grids_pool.staging_area;
+	View& v = views[0];
+	v.grid->render_into(v.text, cells, v.highlighter);
 
-	return push_to_gpu(grids_pool, 0, renders[0].total_size);
+	int res = push_to_gpu(grids_pool, 0, v.grid->rows * v.grid->cols * sizeof(Cell));
+	if (res != 0)
+		return __LINE__;
+
+	if (!view_params || n_views > view_param_cap) {
+		int cap = VIEW_PARAMS_INITIAL_CAP;
+		while (cap < n_views)
+			cap *= 2;
+
+		auto vps = new View_Params[cap];
+		if (view_params)
+			delete[] view_params;
+
+		view_params = vps;
+		view_param_cap = cap;
+	}
+	n_view_params = n_views;
+
+	for (int i = 0; i < n_view_params; i++) {
+		Font_Render *r = &renders[views[i].font_render_idx];
+
+		view_params[i] = {
+			.view_origin = {0, 0},
+			.view_size = {(uint32_t)wnd_width, (uint32_t)wnd_height},
+			.cell_size = {(uint32_t)r->get_full_glyph_width(), (uint32_t)r->glyph_h},
+			.grid_cell_offset = 0,
+			.glyphset_byte_offset = 0,
+			.glyph_overlap_w = (uint32_t)r->overlap_w
+		};
+	}
+
+	return 0;
 }
 
 int Vulkan::create_descriptor_set() {
+	VkResult res;
+
+	if (!dpool) {
+		VkDescriptorPoolSize ps_info = {
+			.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorCount = 2
+		};
+
+		VkDescriptorPoolCreateInfo dpool_info = {
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+			.maxSets = 1,
+			.poolSizeCount = 1,
+			.pPoolSizes = &ps_info
+		};
+
+		res = vkCreateDescriptorPool(device, &dpool_info, nullptr, &dpool);
+			FAIL_IF(res != VK_SUCCESS, "vkCreateDescriptorPool() failed (%d)\n", res)
+	}
+
 	VkDescriptorSetLayoutBinding ds_bindings[] = {
 		{
 			.binding = 0,
@@ -661,7 +686,7 @@ int Vulkan::create_descriptor_set() {
 		.pBindings = ds_bindings
 	};
 
-	VkResult res = vkCreateDescriptorSetLayout(device, &ds_info, nullptr, &ds_layout);
+	res = vkCreateDescriptorSetLayout(device, &ds_info, nullptr, &ds_layout);
 		FAIL_IF(res != VK_SUCCESS, "vkCreateDescriptorSetLayout() failed (%d)\n", res)
 
 	VkDescriptorSetAllocateInfo ds_alloc_info = {
@@ -678,14 +703,26 @@ int Vulkan::create_descriptor_set() {
 }
 
 int Vulkan::construct_pipeline() {
+	VkPushConstantRange push_info = {
+		.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		.offset = 0,
+		.size = sizeof(View_Params)
+	};
+
 	VkPipelineLayoutCreateInfo pl_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount = 1,
-		.pSetLayouts = &ds_layout
+		.pSetLayouts = &ds_layout,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &push_info
 	};
 
 	VkResult res = vkCreatePipelineLayout(device, &pl_info, nullptr, &pl_layout);
 		FAIL_IF(res != VK_SUCCESS, "vkCreatePipelineLayout() failed (%d)\n", res)
+
+	VkPipelineVertexInputStateCreateInfo vert_info = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
+	};
 
 	VkPipelineInputAssemblyStateCreateInfo asm_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
@@ -750,6 +787,7 @@ int Vulkan::construct_pipeline() {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 		.stageCount = 2,
 		.pStages = shader_stages,
+		.pVertexInputState = &vert_info,
 		.pInputAssemblyState = &asm_info,
 		.pViewportState = &vp_info,
 		.pRasterizationState = &raster_info,
@@ -768,14 +806,14 @@ int Vulkan::construct_pipeline() {
 
 int Vulkan::update_command_buffers() {
 	VkDescriptorBufferInfo grid_buf_info = {
-		.buffer = grids_buf,
+		.buffer = grids_pool.dev_buf,
 		.offset = 0,
-		.range = (VkDeviceSize)grids_size
+		.range = (VkDeviceSize)grids_pool.size
 	};
 	VkDescriptorBufferInfo glyphset_buf_info = {
-		.buffer = glyphsets_buf,
+		.buffer = glyphset_pool.dev_buf,
 		.offset = 0,
-		.range = (VkDeviceSize)glyphsets_size
+		.range = (VkDeviceSize)glyphset_pool.size
 	};
 
 	VkWriteDescriptorSet write_info[] = {
@@ -825,7 +863,7 @@ int Vulkan::update_command_buffers() {
 	vkCmdBindDescriptorSets(draw_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pl_layout, 0, 1, &desc_set, 0, nullptr);
 	vkCmdBindPipeline(draw_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-	{
+	for (int i = 0; i < n_view_params; i++) {
 		VkRect2D *scissor = &rp_info.renderArea;
 
 		VkViewport viewport = {
@@ -838,8 +876,7 @@ int Vulkan::update_command_buffers() {
 		vkCmdSetViewport(draw_buffer, 0, 1, &viewport);
 		vkCmdSetScissor(draw_buffer, 0, 1, scissor);
 
-		View_Params view_params = views[i].params;
-		vkCmdPushConstants(draw_buffer, pl_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(View_Params), &view_params);
+		vkCmdPushConstants(draw_buffer, pl_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(View_Params), &view_params[i]);
 
 		vkCmdDraw(draw_buffer, 4, 1, 0, 1);
 	}
@@ -887,11 +924,12 @@ int Vulkan::recreate_swapchain(int width, int height) {
 	VkResult res = create_swapchain();
 		FAIL_IF(res != VK_SUCCESS, "vkCreateSwapchainKHR() failed (%d)\n", res)
 
-	u32 n_images = 1;
+	uint32_t n_images = 1;
 	res = GetSwapchainImagesKHR(device, swapchain, &n_images, &swap_image);
 		FAIL_IF(res != VK_SUCCESS, "Could not acquire swapchain images (%d)\n", res)
 
-	res = create_swapchain_imageview();
+	VkImageViewCreateInfo iv_info = make_imageview_info(&swap_image, sf_color_fmt.format, VK_IMAGE_ASPECT_COLOR_BIT);
+	res = vkCreateImageView(device, &iv_info, nullptr, &swap_image_view);
 		FAIL_IF(res != VK_SUCCESS, "vkCreateImageView() failed (%d)\n", res)
 
 	res = create_framebuffer();
@@ -906,7 +944,7 @@ int Vulkan::recreate_swapchain(int width, int height) {
 
 int Vulkan::render() {
 	int idx;
-	VkResult res = AcquireNextImageKHR(device, swapchain, -1, sema_present, NULL, (u32*)&idx);
+	VkResult res = AcquireNextImageKHR(device, swapchain, -1, sema_present, NULL, (uint32_t*)&idx);
 		FAIL_IF(res != VK_SUCCESS, "vkAcquireNextImageKHR() failed (%d)\n", res)
 
 	res = vkWaitForFences(device, 1, &draw_fence, VK_TRUE, -1);
@@ -919,7 +957,7 @@ int Vulkan::render() {
 	res = vkQueueSubmit(queue, 1, &submit_info, draw_fence);
 		FAIL_IF(res != VK_SUCCESS, "vkQueueSubmit() failed (%d)\n", res)
 
-	present_info.pImageIndices = (u32*)&idx;
+	present_info.pImageIndices = (uint32_t*)&idx;
 	res = QueuePresentKHR(queue, &present_info);
 		FAIL_IF(res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR, "vkQueuePresentKHR() failed (%d)\n", res)
 

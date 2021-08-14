@@ -1,50 +1,11 @@
 #pragma once
 
-#include "font.h"
 #include <cstdint>
+#include "font.h"
+#include "view.h"
 
+constexpr int MiB = 1024 * 1024;
 constexpr uint64_t MAX_64 = -1;
-
-struct Highlighter {
-	constexpr int N_COLORS = 32;
-	uint32_t colors[N_COLORS];
-};
-
-struct Text {
-	char *data;
-	int64_t total_size;
-
-	int64_t file_begin;
-	int64_t lines_down;
-
-	int64_t *newlines;
-	int nl_capacity;
-	int nl_size;
-
-	void enumerate_newlines();
-};
-
-struct Cell {
-	uint32_t glyph;
-	uint32_t modifier;
-	uint32_t foreground;
-	uint32_t background;
-};
-
-struct Grid {
-	int rows;
-	int cols;
-	int64_t row_offset;
-	int64_t col_offset;
-
-	void render_into(Text& text, Cell *cells, Highlighter& syntax);
-};
-
-struct View {
-	Grid *grid;
-	Text *text;
-	Highlighter *highlighter;
-};
 
 struct uvec2 {
 	uint32_t x, y;
@@ -67,6 +28,16 @@ struct Memory_Pool {
 	uint8_t *staging_area;
 	int size;
 	VkResult result;
+
+	void close(VkDevice device) {
+		vkUnmapMemory(device, host_mem);
+
+		vkDestroyBuffer(device, dev_buf, nullptr);
+		vkDestroyBuffer(device, host_buf, nullptr);
+
+		vkFreeMemory(device, dev_mem, nullptr);
+		vkFreeMemory(device, host_mem, nullptr);
+	}
 };
 
 enum {
@@ -84,6 +55,14 @@ enum {
 };
 
 struct Vulkan {
+	static constexpr int GRIDS_POOL_SIZE         = 8 * MiB;
+	static constexpr int GLYPHSET_POOL_SIZE      = 8 * MiB;
+	static constexpr int VIEW_PARAMS_INITIAL_CAP = 8;
+
+	View_Params *view_params = nullptr;
+	int n_view_params = 0;
+	int view_param_cap = 0;
+
 	const VkImageUsageFlags img_usage =
 		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
 		VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
@@ -190,16 +169,17 @@ struct Vulkan {
 	VkResult setup_validation();
 	int select_bgra8_surface_format();
 	VkResult create_swapchain();
-	VkResult create_swapchain_imageview();
 	int create_command_pool_and_draw_buffers();
 	VkResult create_renderpass();
 	VkResult create_framebuffer();
 	VkResult create_semaphores();
 	void create_fences();
-	VkResult create_descriptor_pool();
+
+	Memory_Pool allocate_gpu_memory(int size);
+	int push_to_gpu(Memory_Pool& pool, int offset, int size);
 
 	int upload_glyphsets(Font_Handle fh, Font_Render *renders, int n_renders);
-	int render_and_upload_views(View *views, int n_views);
+	int render_and_upload_views(View *views, int n_views, Font_Render *renders);
 
 	int create_descriptor_set();
 	int construct_pipeline();

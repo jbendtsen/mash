@@ -1,13 +1,17 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <vector>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <memory>
 
 #include "mash.h"
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 #define DEFAULT_FONT_PATH "content/Monaco_Regular.ttf"
 
@@ -17,7 +21,7 @@ static Font_Render font_render;
 static Text text;
 static Highlighter syntax;
 
-const char **get_required_instance_extensions(u32 *n_inst_exts) {
+const char **get_required_instance_extensions(uint32_t *n_inst_exts) {
 	return glfwGetRequiredInstanceExtensions(n_inst_exts);
 }
 
@@ -50,7 +54,7 @@ std::unique_ptr<char[]> load_shader_spv(VkShaderModuleCreateInfo& shader, const 
 
 	memset(&shader, 0, sizeof(VkShaderModuleCreateInfo));
 	shader.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	shader.pCode = (u32*)buf;
+	shader.pCode = (uint32_t*)buf;
 	shader.codeSize = sz;
 
 	return uptr;
@@ -65,13 +69,14 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 	View view = {
 		.grid = &grid,
 		.text = &text,
-		.highlighter = &syntax
+		.highlighter = &syntax,
+		.font_render_idx = 0
 	};
 
 	int res = vk.upload_glyphsets(font_face, &font_render, 1);
 	if (res != 0) return res;
 
-	res = vk.render_and_upload_views(&view, 1);
+	res = vk.render_and_upload_views(&view, 1, &font_render);
 	if (res != 0) return res;
 
 	res = vk.create_descriptor_set();
@@ -105,11 +110,11 @@ int main(int argc, char **argv) {
 	atexit([](){ft_quit();});
 
 	font_face = load_font_face(DEFAULT_FONT_PATH);
-	if (!font)
+	if (!font_face)
 		return 1;
 
 	// TODO: Use system DPI
-	font_render = size_up_font_render(font, 10, 96, 96);
+	font_render = size_up_font_render(font_face, 10, 96, 96);
 
 	syntax.colors[0] = 0x303030ff;
 	syntax.colors[1] = 0xf0f0f0ff;
@@ -129,10 +134,8 @@ int main(int argc, char **argv) {
 	fstat(fd, &st);
 	int64_t size = st.st_size;
 
-	text = {
-		.data = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0),
-		.total_size = size
-	};
+	text.data = (char*)mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
+	text.total_size = size;
 
 	text.enumerate_newlines();
 
@@ -161,6 +164,8 @@ int main(int argc, char **argv) {
 	int res = init_vulkan(vk, vertex_buf, fragment_buf, width, height);
 	if (res == 0)
 		res = start_app(vk, window);
+
+	close(fd);
 
 	vk.close();
 	glfwDestroyWindow(window);

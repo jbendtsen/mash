@@ -1,4 +1,7 @@
-#include "mash.h"
+#include <cstdint>
+#include <cstring>
+#include "font.h"
+#include "view.h"
 
 void Text::enumerate_newlines() {
 	if (!newlines) {
@@ -7,7 +10,7 @@ void Text::enumerate_newlines() {
 	}
 
 	nl_size = 0;
-	for (int64_t i = nl_start; i < total_size; i++) {
+	for (int64_t i = file_begin; i < total_size; i++) {
 		if (data[i] != '\n')
 			continue;
 
@@ -23,19 +26,19 @@ void Text::enumerate_newlines() {
 	}
 }
 
-void Grid::render_into(Text& text, Cell *cells, Highlighter& syntax) {
+void Grid::render_into(Text *text, Cell *cells, Highlighter *syntax) {
 	const Cell empty = {
-		.background = syntax.colors[0]
+		.background = syntax->colors[0]
 	};
 
-	int line = (int)(row_offset - text.lines_down);
+	int line = (int)(row_offset - text->lines_down);
 	int idx = 0;
 
 	for (int i = 0; i < rows; i++) {
-		int64_t offset = text.newlines[line + i] + 1LL;
+		int64_t offset = text->newlines[line + i] + 1LL;
 		int col = 0;
 		for (col = 0; col < cols; col++) {
-			char c = text.data[offset++];
+			char c = text->data[offset++];
 			if (c == '\n')
 				break;
 
@@ -45,8 +48,8 @@ void Grid::render_into(Text& text, Cell *cells, Highlighter& syntax) {
 			cells[idx + col] = {
 				.glyph = (uint32_t)(c - ' '),
 				.modifier = 0,
-				.background = syntax.colors[0],
-				.foreground = syntax.colors[1]
+				.foreground = syntax->colors[1],
+				.background = syntax->colors[0]
 			};
 		}
 

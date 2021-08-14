@@ -28,7 +28,7 @@ layout (push_constant) uniform PARAMS {
 
 layout (location = 0) out vec4 outColor;
 
-float get_glyph_value(uint slot, uvec2 pos) {
+float get_glyph_value(uint slot, uint pos) {
 	uint idx = params.glyphset_byte_offset + (slot * params.cell_size.x * params.cell_size.y) + pos;
 
 	uint shift = (3 - (idx & 3)) * 8;
@@ -81,8 +81,8 @@ void main() {
 		}
 	}
 
-	vec3 back = get_color(grid[cell].background);
-	vec3 fore = get_color(grid[cell].foreground);
+	vec3 back = get_color(grid[cell_idx].background);
+	vec3 fore = get_color(grid[cell_idx].foreground);
 
 	float lum = clamp(value_right + value_left, 0.0, 1.0);
 	outColor = vec4(mix(back, fore, lum), 1.0);
