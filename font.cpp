@@ -124,21 +124,22 @@ Font_Render size_up_font_render(Font_Handle fh, float size, float dpi_w, float d
 	float pt_h = size * dpi_h / 72.0;
 
 	float em_units = (float)(face->units_per_EM ? face->units_per_EM : 1);
-	float glyph_w_f = pt_w * (float)face->max_advance_width / em_units;
-	float glyph_h_f = pt_h * (float)face->max_advance_height / em_units;
+	float glyph_h = pt_h * (float)face->max_advance_height / em_units;
 
-	int overlap_w = 1 + (int)(glyph_w_f / 16.0);
-	int glyph_w = (int)glyph_w_f;
-	int glyph_h = (int)glyph_h_f;
+	float glyph_w_long = pt_w * (float)face->max_advance_width / em_units;
+	float glyph_img_w = 1.25 * glyph_w_long;
+	float glyph_w = 0.85 * glyph_w_long;
+
+	int overlap_w = 1 + (int)((glyph_img_w - glyph_w) / 2.0);
 
 	Font_Render render = {
 		.dpi_w = dpi_w,
 		.dpi_h = dpi_h,
 		.points = pts,
-		.baseline = (glyph_h * 3) / 4,
+		.baseline = (int)(0.75*glyph_h),
 		.overlap_w = overlap_w,
-		.glyph_w = glyph_w,
-		.glyph_h = glyph_h
+		.glyph_w = (int)glyph_w,
+		.glyph_h = (int)glyph_h
 	};
 
 	render.total_size = N_GLYPHS * render.get_full_glyph_width() * glyph_h;
@@ -167,17 +168,6 @@ void make_font_render(Font_Handle fh, Font_Render render) {
 	render_ascii<true>(render, face, 288);
 
 	int full_glyph_w = render.get_full_glyph_width();
-/*
-	int bar_h = 1 + (render.glyph_h / 15);
-	int bar_bottom = render.glyph_h - bar_h;
-	int bar_middle = bar_bottom / 2;
-
-	int underline_offset     = (N_GLYPHS - 2) * full_glyph_w * render.glyph_h;
-	int strikethrough_offset = (N_GLYPHS - 1) * full_glyph_w * render.glyph_h;
-
-	memset(render.buf + underline_offset + (bar_bottom * full_glyph_w), 0xff, bar_h * full_glyph_w);
-	memset(render.buf + strikethrough_offset + (bar_middle * full_glyph_w), 0xff, bar_h * full_glyph_w);
-*/
 }
 
 void ft_quit() {

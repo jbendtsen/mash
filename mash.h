@@ -7,6 +7,10 @@
 constexpr int MiB = 1024 * 1024;
 constexpr uint64_t MAX_64 = -1;
 
+constexpr int GRIDS_POOL_SIZE         = 8 * MiB;
+constexpr int GLYPHSET_POOL_SIZE      = 8 * MiB;
+constexpr int VIEW_PARAMS_INITIAL_CAP = 8;
+
 struct uvec2 {
 	uint32_t x, y;
 };
@@ -56,10 +60,6 @@ enum {
 };
 
 struct Vulkan {
-	static constexpr int GRIDS_POOL_SIZE         = 8 * MiB;
-	static constexpr int GLYPHSET_POOL_SIZE      = 8 * MiB;
-	static constexpr int VIEW_PARAMS_INITIAL_CAP = 8;
-
 	View_Params *view_params = nullptr;
 	int n_view_params = 0;
 	int view_param_cap = 0;
@@ -178,9 +178,6 @@ struct Vulkan {
 
 	Memory_Pool allocate_gpu_memory(int size);
 	int push_to_gpu(Memory_Pool& pool, int offset, int size);
-
-	int upload_glyphsets(Font_Handle fh, Font_Render *renders, int n_renders);
-	int render_and_upload_views(View *views, int n_views, Font_Render *renders);
 
 	int create_descriptor_set();
 	int construct_pipeline();

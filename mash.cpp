@@ -60,6 +60,65 @@ std::unique_ptr<char[]> load_shader_spv(VkShaderModuleCreateInfo& shader, const 
 	return uptr;
 }
 
+int upload_glyphsets(Vulkan& vk, Font_Handle fh, Font_Render *renders, int n_renders) {
+	if (!vk.glyphset_pool.size) {
+		vk.glyphset_pool = vk.allocate_gpu_memory(GLYPHSET_POOL_SIZE);
+		if (!vk.glyphset_pool.size)
+			return __LINE__;
+	}
+
+	renders[0].buf = vk.glyphset_pool.staging_area;
+	make_font_render(fh, renders[0]);
+
+	return vk.push_to_gpu(vk.glyphset_pool, 0, renders[0].total_size);
+}
+
+int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *renders) {
+	if (!vk.grids_pool.size) {
+		vk.grids_pool = vk.allocate_gpu_memory(GRIDS_POOL_SIZE);
+		if (!vk.grids_pool.size)
+			return __LINE__;
+	}
+
+	Cell *cells = (Cell*)vk.grids_pool.staging_area;
+	View& v = views[0];
+	v.grid->render_into(v.text, cells, v.highlighter);
+
+	int res = vk.push_to_gpu(vk.grids_pool, 0, v.grid->rows * v.grid->cols * sizeof(Cell));
+	if (res != 0)
+		return __LINE__;
+
+	if (!vk.view_params || n_views > vk.view_param_cap) {
+		int cap = VIEW_PARAMS_INITIAL_CAP;
+		while (cap < n_views)
+			cap *= 2;
+
+		auto vps = new View_Params[cap];
+		if (vk.view_params)
+			delete[] vk.view_params;
+
+		vk.view_params = vps;
+		vk.view_param_cap = cap;
+	}
+	vk.n_view_params = n_views;
+
+	for (int i = 0; i < vk.n_view_params; i++) {
+		Font_Render *r = &renders[views[i].font_render_idx];
+
+		vk.view_params[i] = {
+			.view_origin = {0, 0},
+			.view_size = {(uint32_t)vk.wnd_width, (uint32_t)vk.wnd_height},
+			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
+			.columns = (uint32_t)v.grid->cols,
+			.grid_cell_offset = 0,
+			.glyphset_byte_offset = 0,
+			.glyph_overlap_w = (uint32_t)r->overlap_w
+		};
+	}
+
+	return 0;
+}
+
 int start_app(Vulkan& vk, GLFWwindow *window) {
 	Grid grid = {
 		.rows = (vk.wnd_height + font_render.glyph_h - 1) / font_render.glyph_h,
@@ -73,10 +132,10 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 		.font_render_idx = 0
 	};
 
-	int res = vk.upload_glyphsets(font_face, &font_render, 1);
+	int res = upload_glyphsets(vk, font_face, &font_render, 1);
 	if (res != 0) return res;
 
-	res = vk.render_and_upload_views(&view, 1, &font_render);
+	res = render_and_upload_views(vk, &view, 1, &font_render);
 	if (res != 0) return res;
 
 	res = vk.create_descriptor_set();

@@ -588,65 +588,6 @@ int Vulkan::push_to_gpu(Memory_Pool& pool, int offset, int size) {
 	return 0;
 }
 
-int Vulkan::upload_glyphsets(Font_Handle fh, Font_Render *renders, int n_renders) {
-	if (!glyphset_pool.size) {
-		glyphset_pool = allocate_gpu_memory(GLYPHSET_POOL_SIZE);
-		if (!glyphset_pool.size)
-			return __LINE__;
-	}
-
-	renders[0].buf = glyphset_pool.staging_area;
-	make_font_render(fh, renders[0]);
-
-	return push_to_gpu(glyphset_pool, 0, renders[0].total_size);
-}
-
-int Vulkan::render_and_upload_views(View *views, int n_views, Font_Render *renders) {
-	if (!grids_pool.size) {
-		grids_pool = allocate_gpu_memory(GRIDS_POOL_SIZE);
-		if (!grids_pool.size)
-			return __LINE__;
-	}
-
-	Cell *cells = (Cell*)grids_pool.staging_area;
-	View& v = views[0];
-	v.grid->render_into(v.text, cells, v.highlighter);
-
-	int res = push_to_gpu(grids_pool, 0, v.grid->rows * v.grid->cols * sizeof(Cell));
-	if (res != 0)
-		return __LINE__;
-
-	if (!view_params || n_views > view_param_cap) {
-		int cap = VIEW_PARAMS_INITIAL_CAP;
-		while (cap < n_views)
-			cap *= 2;
-
-		auto vps = new View_Params[cap];
-		if (view_params)
-			delete[] view_params;
-
-		view_params = vps;
-		view_param_cap = cap;
-	}
-	n_view_params = n_views;
-
-	for (int i = 0; i < n_view_params; i++) {
-		Font_Render *r = &renders[views[i].font_render_idx];
-
-		view_params[i] = {
-			.view_origin = {0, 0},
-			.view_size = {(uint32_t)wnd_width, (uint32_t)wnd_height},
-			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
-			.columns = (uint32_t)v.grid->cols,
-			.grid_cell_offset = 0,
-			.glyphset_byte_offset = 0,
-			.glyph_overlap_w = (uint32_t)r->overlap_w
-		};
-	}
-
-	return 0;
-}
-
 int Vulkan::create_descriptor_set() {
 	VkResult res;
 
@@ -844,7 +785,7 @@ int Vulkan::update_command_buffers() {
 	};
 
 	VkClearValue clear_value = {
-		.color = { { 0.0f, 0.0f, 0.2f, 1.0f } }
+		.color = { { 0.0f, 0.0f, 0.0f, 1.0f } }
 	};
 
 	VkRenderPassBeginInfo rp_info = {

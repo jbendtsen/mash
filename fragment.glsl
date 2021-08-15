@@ -51,43 +51,40 @@ void main() {
 	uint outer_row = view_pos.y / params.cell_size.y;
 	uint inner_row = view_pos.y % params.cell_size.y;
 
-	uint row_start_cell = params.grid_cell_offset + outer_row * params.columns;
-	uint glyph_line_offset = inner_row * full_cell_w;
+	uint outer_col = view_pos.x / cell_w;
+	uint inner_col = view_pos.x % cell_w;
 
-	uint bar_h   = 1 + (params.cell_size.y / 15);
+	uint bar_h   = 1 + (params.cell_size.y / 20);
 	uint bar_mid = (params.cell_size.y - bar_h) / 2;
 
-	uint x_left  = view_pos.x - params.glyph_overlap_w;
-	uint x_right = view_pos.x + params.glyph_overlap_w;
+	float value_cur  = 0.0;
+	float value_prev = 0.0;
 
-	uvec2 left  = uvec2(x_left / cell_w, x_left % cell_w);
-	uvec2 right = uvec2(x_right / cell_w, x_right % cell_w);
+	uint row_start_cell = params.grid_cell_offset + outer_row * params.columns;
 
-	float value_right = 0.0;
-	float value_left  = 0.0;
-
-	uint cell_idx = row_start_cell + right[0];
+	uint cell_idx = row_start_cell + outer_col;
 	uint modifier = grid[cell_idx].modifier;
 	uint top = modifier * bar_mid;
 
 	if (modifier > 0 && inner_row >= top && inner_row < top + bar_h) {
-		value_right = 1.0;
+		value_cur = 1.0;
 	}
 	else {
-		uint pos = glyph_line_offset + right[1];
-		value_right = get_glyph_value(grid[cell_idx].glyph, pos, full_cell_w);
+		uint glyph_pixel_offset = inner_row * full_cell_w;
+		uint next_threshold = cell_w - params.glyph_overlap_w;
 
-		if (left[0] >= 0 && left[0] != right[0]) {
-			uint left_cell_idx = row_start_cell + left[0];
-			uint left_pos = glyph_line_offset + left[1];
+		uint pos = glyph_pixel_offset + inner_col + params.glyph_overlap_w;
+		value_cur = get_glyph_value(grid[cell_idx].glyph, pos, full_cell_w);
 
-			value_left = get_glyph_value(grid[left_cell_idx].glyph, left_pos, full_cell_w);
+		if (outer_col > 0 && inner_col < params.glyph_overlap_w) {
+			uint prev_pos = glyph_pixel_offset + full_cell_w - params.glyph_overlap_w + inner_col;
+			value_prev = get_glyph_value(grid[cell_idx - 1].glyph, prev_pos, full_cell_w);
 		}
 	}
 
 	vec3 back = get_color(grid[cell_idx].background);
 	vec3 fore = get_color(grid[cell_idx].foreground);
 
-	float lum = clamp(value_right + value_left, 0.0, 1.0);
+	float lum = clamp(value_cur + value_prev, 0.0, 1.0);
 	outColor = vec4(mix(back, fore, lum), 1.0);
 }
