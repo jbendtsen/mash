@@ -120,10 +120,13 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 }
 
 int start_app(Vulkan& vk, GLFWwindow *window) {
-	Grid grid = {
-		.rows = (vk.wnd_height + font_render.glyph_h - 1) / font_render.glyph_h,
-		.cols = (vk.wnd_width + font_render.glyph_w - 1) / font_render.glyph_w,
+	auto make_grid = [&vk]() {
+		return (Grid) {
+			.rows = (vk.wnd_height + font_render.glyph_h - 1) / font_render.glyph_h,
+			.cols = (vk.wnd_width + font_render.glyph_w - 1) / font_render.glyph_w,
+		};
 	};
+	Grid grid = make_grid();
 
 	View view = {
 		.grid = &grid,
@@ -157,6 +160,11 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 		}
 
 		if (needs_resubmit) {
+			grid = make_grid();
+
+			res = render_and_upload_views(vk, &view, 1, &font_render);
+			if (res != 0) return res;
+
 			res = vk.update_command_buffers();
 			if (res != 0) return res;
 

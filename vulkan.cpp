@@ -193,7 +193,7 @@ int Vulkan::select_bgra8_surface_format() {
 
 	sf_color_fmt = {VK_FORMAT_UNDEFINED};
 	for (int i = 0; i < n_color_formats; i++) {
-		if (colors[i].format == VK_FORMAT_B8G8R8A8_UNORM || colors[i].format == VK_FORMAT_B8G8R8A8_SRGB) {
+		if (colors[i].format == VK_FORMAT_B8G8R8A8_UNORM) {
 			sf_color_fmt = colors[i];
 			break;
 		}
