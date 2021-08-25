@@ -1,8 +1,9 @@
 #pragma once
 
-struct Highlighter {
+struct Formatter {
 	static constexpr int N_COLORS = 32;
 	uint32_t colors[N_COLORS];
+	int spaces_per_tab;
 };
 
 struct Text {
@@ -32,12 +33,12 @@ struct Grid {
 	int64_t row_offset;
 	int64_t col_offset;
 
-	void render_into(Text *text, Cell *cells, Highlighter *syntax);
+	void render_into(Text *text, Cell *cells, Formatter *formatter);
 };
 
 struct View {
 	Grid *grid;
 	Text *text;
-	Highlighter *highlighter;
+	Formatter *formatter;
 	int font_render_idx;
 };

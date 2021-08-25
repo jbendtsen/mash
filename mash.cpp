@@ -18,8 +18,11 @@
 static Font_Handle font_face = nullptr;
 static Font_Render font_render = {0};
 
+static Grid grid = {0};
 static Text text = {0};
-static Highlighter syntax = {0};
+static Formatter formatter = {0};
+
+static bool needs_resubmit = true;
 
 const char **get_required_instance_extensions(uint32_t *n_inst_exts) {
 	return glfwGetRequiredInstanceExtensions(n_inst_exts);
@@ -82,7 +85,7 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 
 	Cell *cells = (Cell*)vk.grids_pool.staging_area;
 	View& v = views[0];
-	v.grid->render_into(v.text, cells, v.highlighter);
+	v.grid->render_into(v.text, cells, v.formatter);
 
 	int res = vk.push_to_gpu(vk.grids_pool, 0, v.grid->rows * v.grid->cols * sizeof(Cell));
 	if (res != 0)
@@ -120,18 +123,16 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 }
 
 int start_app(Vulkan& vk, GLFWwindow *window) {
-	auto make_grid = [&vk]() {
-		return (Grid) {
-			.rows = (vk.wnd_height + font_render.glyph_h - 1) / font_render.glyph_h,
-			.cols = (vk.wnd_width + font_render.glyph_w - 1) / font_render.glyph_w,
-		};
+	auto resize_grid = [&vk](Grid& g) {
+		g.rows = (vk.wnd_height + font_render.glyph_h - 1) / font_render.glyph_h;
+		g.cols = (vk.wnd_width + font_render.glyph_w - 1) / font_render.glyph_w;
 	};
-	Grid grid = make_grid();
+	resize_grid(grid);
 
 	View view = {
 		.grid = &grid,
 		.text = &text,
-		.highlighter = &syntax,
+		.formatter = &formatter,
 		.font_render_idx = 0
 	};
 
@@ -147,7 +148,7 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 	res = vk.construct_pipeline();
 	if (res != 0) return res;
 
-	bool needs_resubmit = true;
+	needs_resubmit = true;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwWaitEventsTimeout(0.5);
@@ -160,7 +161,7 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 		}
 
 		if (needs_resubmit) {
-			grid = make_grid();
+			resize_grid(grid);
 
 			res = render_and_upload_views(vk, &view, 1, &font_render);
 			if (res != 0) return res;
@@ -177,8 +178,29 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 	return res;
 }
 
+// This function **doesn't** get called from a different thread, so we can let it access globals
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+	int64_t move_down = 0;
+	int64_t move_right = 0;
 
+	if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+		if (key == GLFW_KEY_UP)
+			move_down--;
+		else if (key == GLFW_KEY_DOWN)
+			move_down++;
+		else if (key == GLFW_KEY_LEFT)
+			move_right--;
+		else if (key == GLFW_KEY_RIGHT)
+			move_right++;
+	}
+
+	int64_t temp = grid.row_offset + move_down;
+	grid.row_offset = temp >= 0 ? temp : 0;
+
+	temp = grid.col_offset + move_right;
+	grid.col_offset = temp >= 0 ? temp : 0;
+
+	needs_resubmit = true;
 }
 
 int main(int argc, char **argv) {
@@ -191,8 +213,9 @@ int main(int argc, char **argv) {
 	// TODO: Use system DPI
 	font_render = size_up_font_render(font_face, 10, 96, 96);
 
-	syntax.colors[0] = 0x080808ff;
-	syntax.colors[1] = 0xf0f0f0ff;
+	formatter.colors[0] = 0x080808ff;
+	formatter.colors[1] = 0xf0f0f0ff;
+	formatter.spaces_per_tab = 4;
 
 	VkShaderModuleCreateInfo vertex_buf, fragment_buf;
 
@@ -231,6 +254,8 @@ int main(int argc, char **argv) {
 		glfwTerminate();
 		return 3;
 	}
+
+	glfwSetKeyCallback(window, key_callback);
 
 	Vulkan vk;
 	vk.glfw_monitor = (void*)monitor;
