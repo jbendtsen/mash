@@ -20,8 +20,9 @@
 static Font_Handle font_face = nullptr;
 static Font_Render font_render = {0};
 
-static Grid grid = {0};
 static File file = {0};
+static Text text = {0};
+static Grid grid = {0};
 static Formatter formatter = {0};
 
 static bool needs_resubmit = true;
@@ -190,18 +191,19 @@ int main(int argc, char **argv) {
 
 	VkShaderModuleCreateInfo vertex_buf = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.pCode = (uint32_t*)vertex_shader_data,
-		.codeSize = sizeof(vertex_shader_data)
+		.codeSize = sizeof(vertex_spv_data),
+		.pCode = (uint32_t*)vertex_spv_data
 	};
 	VkShaderModuleCreateInfo fragment_buf = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.pCode = (uint32_t*)fragment_shader_data,
-		.codeSize = sizeof(fragment_shader_data)
+		.codeSize = sizeof(fragment_spv_data),
+		.pCode = (uint32_t*)fragment_spv_data
 	};
 
 	if (file.open("vulkan.cpp") < 0)
 		return 2;
 
+	text.file = &file;
 	text.enumerate_newlines();
 
 	glfwInit();

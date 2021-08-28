@@ -6,12 +6,18 @@ struct Formatter {
 	int spaces_per_tab;
 };
 
-// What if you open the file twice, at two different offsets?
 struct File {
 	char os_handle[16];
 
 	char *data;
 	int64_t total_size;
+
+	int open(const char *name);
+	void close();
+};
+
+struct Text {
+	File *file;
 
 	int64_t file_offset;
 	int64_t lines_down;
@@ -19,9 +25,6 @@ struct File {
 	int64_t *newlines;
 	int nl_capacity;
 	int nl_size;
-
-	int open();
-	void close();
 
 	void enumerate_newlines();
 };

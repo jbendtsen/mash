@@ -1,3 +1,9 @@
+#include <stdint.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
 #include "view.h"
 
 int File::open(const char *name) {
@@ -19,7 +25,7 @@ int File::open(const char *name) {
 }
 
 void File::close() {
-	munmap(text.data, text.total_size);
+	munmap(data, total_size);
 
 	int fd = ((int*)os_handle)[0];
 	if (fd > 0)
