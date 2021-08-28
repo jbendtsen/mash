@@ -10,11 +10,6 @@
 
 #include "mash.h"
 
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <unistd.h>
-
 #define DEFAULT_FONT_PATH "content/Monaco_Regular.ttf"
 
 static Font_Handle font_face = nullptr;

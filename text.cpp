@@ -13,10 +13,13 @@ void Text::enumerate_newlines() {
 	if (end > file->total_size)
 		end = file->total_size;
 
+	char *data = file->data;
+
 	nl_size = 0;
 	bool was_nl = true;
+
 	for (int64_t i = file_offset; i < end; i++) {
-		was_nl = file->data[i] == '\n';
+		was_nl = data[i] == '\n';
 		if (!was_nl)
 			continue;
 

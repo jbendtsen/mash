@@ -1,4 +1,6 @@
 content
 *.spv
 assets.h
+*.dll
+*.exe
 mash

@@ -1,10 +1,13 @@
 #include <vulkan/vulkan.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "mash.h"
 
-typedef unsigned int uint32_t;
+#ifndef alloca
+#define alloca _alloca
+#endif
 
 int prev_failif_line = 0;
 
@@ -244,7 +247,7 @@ VkImageViewCreateInfo make_imageview_info(VkImage *image, VkFormat format, VkIma
 			.a = VK_COMPONENT_SWIZZLE_A
 		},
 		.subresourceRange = (VkImageSubresourceRange) {
-			.aspectMask = aspect,
+			.aspectMask = (VkImageAspectFlags)aspect,
 			.baseMipLevel = 0,
 			.levelCount = 1,
 			.baseArrayLayer = 0,
