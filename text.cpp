@@ -3,76 +3,54 @@
 #include "font.h"
 #include "view.h"
 
-void Text::enumerate_newlines() {
-	if (!newlines) {
-		nl_capacity = 1000;
-		newlines = new int64_t[nl_capacity];
-	}
-
-	int64_t end = file_offset + (int64_t)(1024 * 1024);
-	if (end > file->total_size)
-		end = file->total_size;
-
-	char *data = file->data;
-
-	nl_size = 0;
-	bool was_nl = true;
-
-	for (int64_t i = file_offset; i < end; i++) {
-		was_nl = data[i] == '\n';
-		if (!was_nl)
-			continue;
-
-		newlines[nl_size++] = i;
-		// plus one to allow for a pseudo newline to signal end of file
-		if (nl_size + 1 >= nl_capacity) {
-			int64_t old_cap = nl_capacity;
-			nl_capacity *= 2;
-			int64_t *temp = new int64_t[nl_capacity];
-			memcpy(temp, newlines, old_cap);
-			delete[] newlines;
-			newlines = temp;
-		}
-	}
-
-	if (!was_nl)
-		newlines[nl_size++] = end;
-}
-
-void Grid::render_into(Text *text, Cell *cells, Formatter *formatter) {
+void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 	const Cell empty = {
 		.background = formatter->colors[0]
 	};
 
-	int line = (int)(row_offset - text->lines_down);
 	int idx = 0;
+	int64_t offset = line_offset;
 
-	int64_t offset = line > 0 ? text->newlines[line - 1] + 1LL : 0;
-
+	char *data = file->data;
+	int64_t total_size = file->total_size;
 	int spt = formatter->spaces_per_tab;
 
-	char *data = text->file->data;
-	int64_t total_size = text->file->total_size;
-
 	for (int i = 0; i < rows && offset < total_size; i++) {
-		int64_t eol = text->newlines[line + i];
 		int64_t char_cols = 0;
 		int64_t vis_cols = 0;
+		bool early_bail = false;
 
 		while (vis_cols < col_offset) {
-			if (data[offset++] == '\t')
+			char c = data[offset++];
+			if (c == '\n') {
+				early_bail = true;
+				break;
+			}
+			else if (c == '\t')
 				vis_cols += spt - (vis_cols % spt);
 			else
 				vis_cols++;
 		}
 
+		if (early_bail) {
+			for (int j = 0; j < cols; j++)
+				cells[idx++] = empty;
+
+			continue;
+		}
+
+		// If we reached a tab character that spans over the given column offset
 		int column = 0;
 		int leading_cols = (int)(vis_cols - col_offset);
 		for (column = 0; column < leading_cols; column++)
 			cells[idx + column] = empty;
 
-		while (column < cols && offset < eol) {
-			char c = data[offset++];
+		while (column < cols && offset < total_size) {
+			char c = data[offset];
+			if (c == '\n')
+				break;
+
+			offset++;
 
 			if (c == '\t') {
 				int n_spaces = spt - (((int)col_offset + column) % spt);
@@ -100,10 +78,48 @@ void Grid::render_into(Text *text, Cell *cells, Formatter *formatter) {
 			cells[idx + j] = empty;
 
 		idx += cols;
-		offset = eol + 1LL;
+
+		if (offset < total_size) {
+			while (data[offset] != '\n')
+				offset++;
+			offset++;
+		}
 	}
 
 	int grid_size = rows * cols;
 	for (int i = idx; i < grid_size; i++)
 		cells[i] = empty;
+}
+
+void Grid::adjust_offsets(File *file, int64_t move_down, int64_t move_right) {
+	int64_t old_row_off = row_offset;
+	int64_t temp = row_offset + move_down;
+	row_offset = temp >= 0 ? temp : 0;
+
+	temp = col_offset + move_right;
+	col_offset = temp >= 0 ? temp : 0;
+
+	char *data = file->data;
+	int64_t size = file->total_size;
+
+	if (row_offset == 0) {
+		line_offset = 0;
+	}
+	else if (row_offset > old_row_off) {
+		int64_t r = old_row_off;
+
+		while (r < row_offset && line_offset < size) {
+			if (data[line_offset++] == '\n')
+				r++;
+		}
+	}
+	else if (row_offset < old_row_off) {
+		int64_t r = old_row_off;
+
+		while (r >= row_offset && line_offset > 0) {
+			if (data[--line_offset] == '\n')
+				r--;
+		}
+		line_offset++;
+	}
 }

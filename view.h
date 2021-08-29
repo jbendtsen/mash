@@ -16,19 +16,6 @@ struct File {
 	void close();
 };
 
-struct Text {
-	File *file;
-
-	int64_t file_offset;
-	int64_t lines_down;
-
-	int64_t *newlines;
-	int nl_capacity;
-	int nl_size;
-
-	void enumerate_newlines();
-};
-
 struct Cell {
 	uint32_t glyph;
 	uint32_t modifier;
@@ -41,13 +28,15 @@ struct Grid {
 	int cols;
 	int64_t row_offset;
 	int64_t col_offset;
+	int64_t line_offset;
 
-	void render_into(Text *text, Cell *cells, Formatter *formatter);
+	void render_into(File *file, Cell *cells, Formatter *formatter);
+	void adjust_offsets(File *file, int64_t move_down, int64_t move_right);
 };
 
 struct View {
 	Grid *grid;
-	Text *text;
+	File *file;
 	Formatter *formatter;
 	int font_render_idx;
 };

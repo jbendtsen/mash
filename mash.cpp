@@ -17,7 +17,6 @@ static Font_Handle font_face = nullptr;
 static Font_Render font_render = {0};
 
 static File file = {0};
-static Text text = {0};
 static Grid grid = {0};
 static Formatter formatter = {0};
 
@@ -53,7 +52,7 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 
 	Cell *cells = (Cell*)vk.grids_pool.staging_area;
 	View& v = views[0];
-	v.grid->render_into(v.text, cells, v.formatter);
+	v.grid->render_into(v.file, cells, v.formatter);
 
 	int res = vk.push_to_gpu(vk.grids_pool, 0, v.grid->rows * v.grid->cols * sizeof(Cell));
 	if (res != 0)
@@ -100,7 +99,7 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 
 	View view = {
 		.grid = &grid,
-		.text = &text,
+		.file = &file,
 		.formatter = &formatter,
 		.font_render_idx = 0
 	};
@@ -163,11 +162,8 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 			move_right++;
 	}
 
-	int64_t temp = grid.row_offset + move_down;
-	grid.row_offset = temp >= 0 ? temp : 0;
-
-	temp = grid.col_offset + move_right;
-	grid.col_offset = temp >= 0 ? temp : 0;
+	if (move_down != 0 || move_right != 0)
+		grid.adjust_offsets(&file, move_down, move_right);
 
 	needs_resubmit = true;
 }
@@ -197,11 +193,8 @@ int main(int argc, char **argv) {
 		.pCode = (uint32_t*)fragment_spv_data
 	};
 
-	if (file.open("content/test.txt") < 0)
+	if (file.open("vulkan.cpp") < 0)
 		return 2;
-
-	text.file = &file;
-	text.enumerate_newlines();
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
