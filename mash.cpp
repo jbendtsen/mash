@@ -168,6 +168,39 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 	needs_resubmit = true;
 }
 
+void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
+	if (xoffset == 0.0 && yoffset == 0.0)
+		return;
+
+	int64_t move_down = 0;
+	int64_t move_right = 0;
+
+	double dx, dy;
+	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) {
+		dx = yoffset;
+		dy = xoffset;
+	}
+	else {
+		dx = xoffset;
+		dy = yoffset;
+	}
+
+	if (dy > 0.0)
+		move_down = -1;
+	else if (dy < 0.0)
+		move_down = 1;
+
+	if (dx > 0.0)
+		move_right = -1;
+	else if (dx < 0.0)
+		move_right = 1;
+
+	if (move_down != 0 || move_right != 0)
+		grid.adjust_offsets(&file, move_down, move_right);
+
+	needs_resubmit = true;
+}
+
 int main(int argc, char **argv) {
 	atexit([](){ft_quit();});
 
@@ -215,6 +248,7 @@ int main(int argc, char **argv) {
 	}
 
 	glfwSetKeyCallback(window, key_callback);
+	glfwSetScrollCallback(window, scroll_callback);
 
 	Vulkan vk;
 	vk.glfw_monitor = (void*)monitor;
