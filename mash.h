@@ -23,6 +23,7 @@ struct View_Params {
 	uint32_t grid_cell_offset;
 	uint32_t glyphset_byte_offset;
 	uint32_t glyph_overlap_w;
+	uint32_t glyph_full_w;
 };
 
 struct Memory_Pool {

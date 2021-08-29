@@ -58,8 +58,6 @@ const char *get_font_type_name(bool bold) {
 
 template<bool bold>
 void render_ascii(Font_Render render, FT_Face face, int start_idx) {
-	int full_glyph_w = render.glyph_w + 2*render.overlap_w;
-
 	for (int c = 0x20; c <= 0x7e; c++) {
 		FT_Bitmap bmp;
 		int left;
@@ -95,19 +93,19 @@ void render_ascii(Font_Render render, FT_Face face, int start_idx) {
 		// HACK
 		if (x < 0) x = 0;
 
-		if (x < 0 || y < 0 || x + w > full_glyph_w || y + h > render.glyph_h) {
-			fprintf(stderr, "%s: '%c' doesn't fit: glyph=(%d,%d,%dx%d), frame=%dx%d\n", get_font_type_name(false), c, x, y, w, h, full_glyph_w, render.glyph_h);
+		if (x < 0 || y < 0 || x + w > render.glyph_img_w || y + h > render.glyph_h) {
+			fprintf(stderr, "%s: '%c' doesn't fit: glyph=(%d,%d,%dx%d), frame=%dx%d\n", get_font_type_name(false), c, x, y, w, h, render.glyph_img_w, render.glyph_h);
 			continue;
 		}
 
 		int idx = start_idx + c - 0x20;
-		int offset = (idx * render.glyph_h + y) * full_glyph_w;
+		int offset = (idx * render.glyph_h + y) * render.glyph_img_w;
 
 		for (int i = 0; i < h; i++) {
 			u8 *in = &bmp.buffer[i*w];
 			u8 *out = &render.buf[offset + x];
 			memcpy(out, in, w);
-			offset += full_glyph_w;
+			offset += render.glyph_img_w;
 		}
 	}
 }
@@ -124,26 +122,27 @@ Font_Render size_up_font_render(Font_Handle fh, float size, float dpi_w, float d
 	float pt_h = size * dpi_h / 72.0;
 
 	float em_units = (float)(face->units_per_EM ? face->units_per_EM : 1);
-	float glyph_h = pt_h * (float)face->max_advance_height / em_units;
+	int glyph_h = (int)(pt_h * (float)face->max_advance_height / em_units);
 
 	float glyph_w_long = pt_w * (float)face->max_advance_width / em_units;
-	float glyph_img_w = 1.25 * glyph_w_long;
-	float glyph_w = 0.85 * glyph_w_long;
 
-	int overlap_w = 1 + (int)((glyph_img_w - glyph_w) / 2.0);
+	int glyph_img_w = (int)((1.40 * glyph_w_long) + 0.5);
+	int glyph_w     = (int)((0.75 * glyph_w_long) + 0.5);
 
-	Font_Render render = {
+	int overlap_w = (glyph_img_w - glyph_w) / 2;
+	overlap_w = (overlap_w < 1) ? 0 : overlap_w - 1;
+
+	return (Font_Render) {
 		.dpi_w = dpi_w,
 		.dpi_h = dpi_h,
 		.points = pts,
 		.baseline = (int)(0.75*glyph_h),
 		.overlap_w = overlap_w,
-		.glyph_w = (int)glyph_w,
-		.glyph_h = (int)glyph_h
+		.glyph_img_w = glyph_img_w,
+		.glyph_w = glyph_w,
+		.glyph_h = glyph_h,
+		.total_size = N_GLYPHS * glyph_img_w * glyph_h
 	};
-
-	render.total_size = N_GLYPHS * render.get_full_glyph_width() * glyph_h;
-	return render;
 }
 
 void make_font_render(Font_Handle fh, Font_Render render) {
@@ -166,8 +165,6 @@ void make_font_render(Font_Handle fh, Font_Render render) {
 
 	render_ascii<false>(render, face, 192);
 	render_ascii<true>(render, face, 288);
-
-	int full_glyph_w = render.get_full_glyph_width();
 }
 
 void ft_quit() {

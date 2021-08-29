@@ -25,6 +25,7 @@ layout (push_constant) uniform PARAMS {
 	uint grid_cell_offset;     // offset in cells (16 or so bytes)
 	uint glyphset_byte_offset; // offset in bytes
 	uint glyph_overlap_w;
+	uint glyph_full_w;
 } params;
 
 layout (location = 0) out vec4 outColor;
@@ -46,7 +47,7 @@ void main() {
 	uvec2 view_pos = uvec2(gl_FragCoord.xy) - params.view_origin;
 
 	uint cell_w = params.cell_size.x;
-	uint full_cell_w = cell_w + 2*params.glyph_overlap_w;
+	uint full_cell_w = params.glyph_full_w;
 
 	uint outer_row = view_pos.y / params.cell_size.y;
 	uint inner_row = view_pos.y % params.cell_size.y;
@@ -57,34 +58,40 @@ void main() {
 	uint bar_h   = 1 + (params.cell_size.y / 20);
 	uint bar_mid = (params.cell_size.y - bar_h) / 2;
 
-	float value_cur  = 0.0;
-	float value_prev = 0.0;
-
 	uint row_start_cell = params.grid_cell_offset + outer_row * params.columns;
 
 	uint cell_idx = row_start_cell + outer_col;
 	uint modifier = grid[cell_idx].modifier;
 	uint top = modifier * bar_mid;
 
+	vec3 back = get_color(grid[cell_idx].background);
+	vec3 fore_cur = get_color(grid[cell_idx].foreground);
+	vec3 fore = fore_cur;
+	float lum = 0.0;
+
 	if (modifier > 0 && inner_row >= top && inner_row < top + bar_h) {
-		value_cur = 1.0;
+		lum = 1.0;
 	}
 	else {
 		uint glyph_pixel_offset = inner_row * full_cell_w;
-		uint next_threshold = cell_w - params.glyph_overlap_w;
+		uint next_threshold = full_cell_w - params.glyph_overlap_w;
 
 		uint pos = glyph_pixel_offset + inner_col + params.glyph_overlap_w;
-		value_cur = get_glyph_value(grid[cell_idx].glyph, pos, full_cell_w);
+		float value_cur = get_glyph_value(grid[cell_idx].glyph, pos, full_cell_w);
+		lum = value_cur;
 
-		if (outer_col > 0 && inner_col < params.glyph_overlap_w) {
-			uint prev_pos = glyph_pixel_offset + full_cell_w - params.glyph_overlap_w + inner_col;
-			value_prev = get_glyph_value(grid[cell_idx - 1].glyph, prev_pos, full_cell_w);
+		if (outer_col > 0 && inner_col <= params.glyph_overlap_w) {
+			uint prev_pos = glyph_pixel_offset + cell_w + params.glyph_overlap_w + inner_col;
+			uint prev_idx = cell_idx - 1;
+			float value_prev = get_glyph_value(grid[prev_idx].glyph, prev_pos, full_cell_w);
+
+			float value = value_cur + value_prev;
+			if (value > 0.0) {
+				lum = clamp(value, 0.0, 1.0);
+				fore = mix(fore_cur, get_color(grid[prev_idx].foreground), value_prev / value);
+			}
 		}
 	}
 
-	vec3 back = get_color(grid[cell_idx].background);
-	vec3 fore = get_color(grid[cell_idx].foreground);
-
-	float lum = clamp(value_cur + value_prev, 0.0, 1.0);
 	outColor = vec4(mix(back, fore, lum), 1.0);
 }

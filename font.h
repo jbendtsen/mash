@@ -10,13 +10,16 @@ struct Font_Render {
 	int points;
 	int baseline;
 	int overlap_w;
+	int glyph_img_w;
 	int glyph_w;
 	int glyph_h;
 	int total_size;
 
+	/*
 	int get_full_glyph_width() {
 		return glyph_w + 2*overlap_w;
 	}
+	*/
 };
 
 Font_Handle load_font_face(const char *path);

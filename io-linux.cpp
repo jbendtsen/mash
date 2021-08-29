@@ -9,7 +9,7 @@
 int File::open(const char *name) {
 	memset(os_handle, 0, sizeof(os_handle));
 
-	int fd = ::open("vulkan.cpp", O_RDONLY);
+	int fd = ::open(name, O_RDONLY);
 	if (fd < 0)
 		return -1;
 

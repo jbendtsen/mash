@@ -10,6 +10,7 @@
 
 #include "mash.h"
 
+//#define DEFAULT_FONT_PATH "content/RobotoMono-Regular.ttf"
 #define DEFAULT_FONT_PATH "content/Monaco_Regular.ttf"
 
 static Font_Handle font_face = nullptr;
@@ -82,7 +83,8 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 			.columns = (uint32_t)v.grid->cols,
 			.grid_cell_offset = 0,
 			.glyphset_byte_offset = 0,
-			.glyph_overlap_w = (uint32_t)r->overlap_w
+			.glyph_overlap_w = (uint32_t)r->overlap_w,
+			.glyph_full_w = (uint32_t)r->glyph_img_w,
 		};
 	}
 
@@ -195,7 +197,7 @@ int main(int argc, char **argv) {
 		.pCode = (uint32_t*)fragment_spv_data
 	};
 
-	if (file.open("vulkan.cpp") < 0)
+	if (file.open("content/test.txt") < 0)
 		return 2;
 
 	text.file = &file;
