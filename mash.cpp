@@ -202,6 +202,10 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
 }
 
 int main(int argc, char **argv) {
+	const char *file_name = "vulkan.cpp";
+	if (argc > 1)
+		file_name = argv[1];
+
 	atexit([](){ft_quit();});
 
 	font_face = load_font_face(DEFAULT_FONT_PATH);
@@ -226,7 +230,7 @@ int main(int argc, char **argv) {
 		.pCode = (uint32_t*)fragment_spv_data
 	};
 
-	if (file.open("vulkan.cpp") < 0)
+	if (file.open(file_name) < 0)
 		return 2;
 
 	glfwInit();
