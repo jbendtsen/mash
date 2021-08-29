@@ -215,9 +215,13 @@ int main(int argc, char **argv) {
 	// TODO: Use system DPI
 	font_render = size_up_font_render(font_face, 10, 96, 96);
 
+	formatter.spaces_per_tab = 4;
+
+	formatter.modes[0].fore_color_idx = 1;
+	formatter.modes[0].glyphset = 2; // italic
+
 	formatter.colors[0] = 0x080808ff;
 	formatter.colors[1] = 0xf0f0f0ff;
-	formatter.spaces_per_tab = 4;
 
 	VkShaderModuleCreateInfo vertex_buf = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,

@@ -3,6 +3,10 @@
 #include "font.h"
 #include "view.h"
 
+void Formatter::update_highlighter(File *file, int64_t offset, char c) {
+	
+}
+
 void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 	const Cell empty = {
 		.background = formatter->colors[0]
@@ -10,6 +14,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 
 	int idx = 0;
 	int64_t offset = line_offset;
+	formatter->cur_mode = mode_at_current_line;
 
 	char *data = file->data;
 	int64_t total_size = file->total_size;
@@ -21,7 +26,10 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 		bool early_bail = false;
 
 		while (vis_cols < col_offset) {
-			char c = data[offset++];
+			char c = data[offset];
+			formatter->update_highlighter(file, offset, c);
+			offset++;
+
 			if (c == '\n') {
 				early_bail = true;
 				break;
@@ -47,6 +55,8 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 
 		while (column < cols && offset < total_size) {
 			char c = data[offset];
+			formatter->update_highlighter(file, offset, c);
+
 			if (c == '\n')
 				break;
 
@@ -64,11 +74,14 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 			if (c < ' ' || c > '~')
 				c = 0x7f;
 
+			uint32_t fg, bg, glyph_off, modifier;
+			formatter->get_current_attrs(fg, bg, glyph_off, modifier);
+
 			cells[idx + column] = {
-				.glyph = (uint32_t)(c + 0xc0 - ' '),
-				.modifier = 0,
-				.foreground = formatter->colors[1],
-				.background = formatter->colors[0]
+				.glyph = (uint32_t)(c - ' ') + glyph_off,
+				.modifier = modifier,
+				.foreground = fg,
+				.background = bg
 			};
 
 			column++;
@@ -80,9 +93,12 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 		idx += cols;
 
 		if (offset < total_size) {
-			while (data[offset] != '\n')
+			char c = 0;
+			do {
+				c = data[offset];
+				formatter->update_highlighter(file, offset, c);
 				offset++;
-			offset++;
+			} while (c != '\n');
 		}
 	}
 

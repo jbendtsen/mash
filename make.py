@@ -4,6 +4,7 @@ import os
 import sys
 
 compiler_name = "g++"
+options = ""
 output_name = "mash"
 
 libs = []
@@ -27,7 +28,8 @@ if os.name == 'nt':
 		"C:\\VulkanSDK\\1.2.135.0\\Lib"
 	))
 	output_name = "mash.exe"
-	compiler_name = "clang -Xlinker /NODEFAULTLIB"
+	compiler_name = "clang"
+	options += "-Xlinker /NODEFAULTLIB -Xlinker /SUBSYSTEM:windows -Xlinker /ENTRY:mainCRTStartup"
 else:
 	excludes["io-windows.cpp"] = True
 	includes.append("/usr/include/freetype2")
@@ -48,6 +50,6 @@ for l in libs:
 
 lib_paths_string = ""
 for l in lib_paths:
-	libs_string += "-L" + l + " "
+	lib_paths_string += "-L" + l + " "
 
-os.system("{0} -std=c++17 {1} {2} {3} {4} -o {5}".format(compiler_name, include_string, lib_paths_string, libs_string, " ".join(cpp_list), output_name))
+os.system("{0} {1} -std=c++17 {2} {3} {4} {5} -o {6}".format(compiler_name, options, include_string, lib_paths_string, libs_string, " ".join(cpp_list), output_name))
