@@ -21,6 +21,7 @@ layout (push_constant) uniform PARAMS {
 	uvec2 view_origin;
 	uvec2 view_size;
 	uvec2 cell_size;
+	ivec2 cursor;
 	uint columns;
 	uint grid_cell_offset;     // offset in cells (16 or so bytes)
 	uint glyphset_byte_offset; // offset in bytes

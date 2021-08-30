@@ -63,6 +63,10 @@ struct Grid {
 	int64_t row_offset;
 	int64_t col_offset;
 	int64_t line_offset;
+	int64_t primary_cursor;
+
+	int rel_cursor_col;
+	int rel_cursor_row;
 	int mode_at_current_line;
 
 	void render_into(File *file, Cell *cells, Formatter *formatter);

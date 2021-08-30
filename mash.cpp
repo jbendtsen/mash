@@ -79,6 +79,7 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 			.view_origin = {0, 0},
 			.view_size = {(uint32_t)vk.wnd_width, (uint32_t)vk.wnd_height},
 			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
+			.cursor = {v.grid->rel_cursor_col, v.grid->rel_cursor_row},
 			.columns = (uint32_t)v.grid->cols,
 			.grid_cell_offset = 0,
 			.glyphset_byte_offset = 0,
@@ -147,7 +148,7 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 }
 
 // This function **doesn't** get called from a different thread, so we can let it access globals
-void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
 	int64_t move_down = 0;
 	int64_t move_right = 0;
 
@@ -168,7 +169,7 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 	needs_resubmit = true;
 }
 
-void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
+static void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
 	if (xoffset == 0.0 && yoffset == 0.0)
 		return;
 
@@ -199,6 +200,10 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
 		grid.adjust_offsets(&file, move_down, move_right);
 
 	needs_resubmit = true;
+}
+
+static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
+	
 }
 
 int main(int argc, char **argv) {
@@ -257,6 +262,7 @@ int main(int argc, char **argv) {
 
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetScrollCallback(window, scroll_callback);
+	glfwSetCursorPosCallback(window, cursor_callback);
 
 	Vulkan vk;
 	vk.glfw_monitor = (void*)monitor;

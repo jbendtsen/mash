@@ -14,11 +14,15 @@ constexpr int VIEW_PARAMS_INITIAL_CAP = 8;
 struct uvec2 {
 	uint32_t x, y;
 };
+struct ivec2 {
+	int32_t x, y;
+};
 
 struct View_Params {
 	uvec2 view_origin;
 	uvec2 view_size;
 	uvec2 cell_size;
+	ivec2 cursor;
 	uint32_t columns;
 	uint32_t grid_cell_offset;
 	uint32_t glyphset_byte_offset;

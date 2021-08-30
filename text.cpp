@@ -12,8 +12,12 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 		.background = formatter->colors[0]
 	};
 
+	rel_cursor_col = -1;
+	rel_cursor_row = -1;
+
 	int idx = 0;
 	int64_t offset = line_offset;
+
 	formatter->cur_mode = mode_at_current_line;
 
 	char *data = file->data;
@@ -56,6 +60,11 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 		while (column < cols && offset < total_size) {
 			char c = data[offset];
 			formatter->update_highlighter(file, offset, c);
+
+			if (offset == primary_cursor) {
+				rel_cursor_col = column;
+				rel_cursor_row = i;
+			}
 
 			if (c == '\n')
 				break;
