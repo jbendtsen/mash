@@ -70,7 +70,9 @@ void main() {
 	vec3 fore = fore_cur;
 	float lum = 0.0;
 
-	if (modifier > 0 && inner_row >= top && inner_row < top + bar_h) {
+	if ((outer_row == params.cursor.y && outer_col == params.cursor.x && inner_col < params.glyph_overlap_w) ||
+		(modifier > 0 && inner_row >= top && inner_row < top + bar_h))
+	{
 		lum = 1.0;
 	}
 	else {

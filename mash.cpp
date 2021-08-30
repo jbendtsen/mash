@@ -20,6 +20,8 @@ static File file = {0};
 static Grid grid = {0};
 static Formatter formatter = {0};
 
+static Mouse_State mouse_state = {0};
+
 static bool needs_resubmit = true;
 
 const char **get_required_instance_extensions(uint32_t *n_inst_exts) {
@@ -52,7 +54,7 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 
 	Cell *cells = (Cell*)vk.grids_pool.staging_area;
 	View& v = views[0];
-	v.grid->render_into(v.file, cells, v.formatter);
+	v.grid->render_into(v.file, cells, v.formatter, mouse_state);
 
 	int res = vk.push_to_gpu(vk.grids_pool, 0, v.grid->rows * v.grid->cols * sizeof(Cell));
 	if (res != 0)
@@ -139,6 +141,8 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 			if (res != 0) return res;
 
 			needs_resubmit = false;
+
+			mouse_state.advance();
 		}
 
 		res = vk.render();
@@ -146,6 +150,9 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 
 	return res;
 }
+
+// TODO: Get font_render from font_renders[get_current_view()->font_render_idx] or something
+//  also Get grid from get_current_view()->grid or something
 
 // This function **doesn't** get called from a different thread, so we can let it access globals
 static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -202,8 +209,22 @@ static void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) 
 	needs_resubmit = true;
 }
 
+static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+	bool left_pressed  = action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_LEFT;
+	bool right_pressed = action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_RIGHT;
+
+	mouse_state.left_flags  = (mouse_state.left_flags & ~1) | (left_pressed & 1);
+	mouse_state.right_flags = (mouse_state.right_flags & ~1) | (right_pressed & 1);
+
+	needs_resubmit = true;
+}
+
 static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
-	
+	mouse_state.x = (int)xpos / font_render.glyph_w;
+	mouse_state.y = (int)ypos / font_render.glyph_h;
+
+	if (mouse_state.left_flags & 3)
+		needs_resubmit = true;
 }
 
 int main(int argc, char **argv) {
@@ -262,6 +283,7 @@ int main(int argc, char **argv) {
 
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetScrollCallback(window, scroll_callback);
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetCursorPosCallback(window, cursor_callback);
 
 	Vulkan vk;

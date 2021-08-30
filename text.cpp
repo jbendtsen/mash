@@ -7,13 +7,16 @@ void Formatter::update_highlighter(File *file, int64_t offset, char c) {
 	
 }
 
-void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
+void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_State& mouse) {
 	const Cell empty = {
 		.background = formatter->colors[0]
 	};
 
 	rel_cursor_col = -1;
 	rel_cursor_row = -1;
+
+	bool mouse_held     = (mouse.left_flags & 1) != 0;
+	bool mouse_was_held = (mouse.left_flags & 2) != 0;
 
 	int idx = 0;
 	int64_t offset = line_offset;
@@ -54,12 +57,21 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter) {
 		// If we reached a tab character that spans over the given column offset
 		int column = 0;
 		int leading_cols = (int)(vis_cols - col_offset);
+
+		if (mouse_held && mouse.y == i && mouse.x < leading_cols) {
+			primary_cursor = offset;
+		}
+
 		for (column = 0; column < leading_cols; column++)
 			cells[idx + column] = empty;
 
 		while (column < cols && offset < total_size) {
 			char c = data[offset];
 			formatter->update_highlighter(file, offset, c);
+
+			if (mouse_held && mouse.y == i && mouse.x == column) {
+				primary_cursor = offset;
+			}
 
 			if (offset == primary_cursor) {
 				rel_cursor_col = column;

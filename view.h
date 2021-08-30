@@ -50,6 +50,19 @@ struct Formatter {
 	void update_highlighter(File *file, int64_t offset, char c);
 };
 
+struct Mouse_State {
+	int left_flags;
+	int right_flags;
+	int x, y;
+
+	void advance() {
+		left_flags &= 1;
+		left_flags |= left_flags << 1;
+		right_flags &= 1;
+		right_flags |= right_flags << 1;
+	}
+};
+
 struct Cell {
 	uint32_t glyph;
 	uint32_t modifier;
@@ -69,7 +82,7 @@ struct Grid {
 	int rel_cursor_row;
 	int mode_at_current_line;
 
-	void render_into(File *file, Cell *cells, Formatter *formatter);
+	void render_into(File *file, Cell *cells, Formatter *formatter, Mouse_State& mouse);
 	void adjust_offsets(File *file, int64_t move_down, int64_t move_right);
 };
 
