@@ -31,6 +31,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 		int64_t char_cols = 0;
 		int64_t vis_cols = 0;
 		bool early_bail = false;
+		bool cursor_set = false;
 
 		while (vis_cols < col_offset) {
 			char c = data[offset];
@@ -60,6 +61,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 
 		if (mouse_held && mouse.y == i && mouse.x < leading_cols) {
 			primary_cursor = offset;
+			cursor_set = true;
 		}
 
 		for (column = 0; column < leading_cols; column++)
@@ -71,6 +73,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 
 			if (mouse_held && mouse.y == i && mouse.x == column) {
 				primary_cursor = offset;
+				cursor_set = true;
 			}
 
 			if (offset == primary_cursor) {
@@ -106,6 +109,12 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 			};
 
 			column++;
+		}
+
+		if (mouse_held && mouse.y == i && !cursor_set) {
+			primary_cursor = offset;
+			rel_cursor_col = column;
+			rel_cursor_row = i;
 		}
 
 		for (int j = column; j < cols; j++)

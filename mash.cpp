@@ -13,6 +13,8 @@
 //#define DEFAULT_FONT_PATH "content/RobotoMono-Regular.ttf"
 #define DEFAULT_FONT_PATH "content/Monaco_Regular.ttf"
 
+static uint32_t cursor_color = 0;
+
 static Font_Handle font_face = nullptr;
 static Font_Render font_render = {0};
 
@@ -82,6 +84,7 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 			.view_size = {(uint32_t)vk.wnd_width, (uint32_t)vk.wnd_height},
 			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
 			.cursor = {v.grid->rel_cursor_col, v.grid->rel_cursor_row},
+			.cursor_color = cursor_color,
 			.columns = (uint32_t)v.grid->cols,
 			.grid_cell_offset = 0,
 			.glyphset_byte_offset = 0,
@@ -248,6 +251,8 @@ int main(int argc, char **argv) {
 
 	formatter.colors[0] = 0x080808ff;
 	formatter.colors[1] = 0xf0f0f0ff;
+
+	cursor_color = 0xf0f0f0ff;
 
 	VkShaderModuleCreateInfo vertex_buf = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
