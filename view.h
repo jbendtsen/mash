@@ -78,8 +78,10 @@ struct Grid {
 	int64_t line_offset;
 	int64_t primary_cursor;
 
-	int rel_cursor_col;
-	int rel_cursor_row;
+	int rel_caret_col;
+	int rel_caret_row;
+	bool chase_target;
+
 	int mode_at_current_line;
 
 	void render_into(File *file, Cell *cells, Formatter *formatter, Mouse_State& mouse);

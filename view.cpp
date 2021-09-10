@@ -12,8 +12,8 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 		.background = formatter->colors[0]
 	};
 
-	rel_cursor_col = -1;
-	rel_cursor_row = -1;
+	rel_caret_col = -1;
+	rel_caret_row = -1;
 
 	bool mouse_held     = (mouse.left_flags & 1) != 0;
 	bool mouse_was_held = (mouse.left_flags & 2) != 0;
@@ -76,24 +76,36 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 				cursor_set = true;
 			}
 
+			if (c == '\t') {
+				int n_spaces = spt - (((int)col_offset + column) % spt);
+
+				if (mouse_held && mouse.y == i && mouse.x >= column && mouse.x < column + n_spaces) {
+					primary_cursor = offset;
+					cursor_set = true;
+				}
+				if (primary_cursor == offset) {
+					rel_caret_col = column;
+					rel_caret_row = i;
+				}
+
+				for (int j = 0; j < n_spaces; j++) {
+					cells[idx + column] = empty;
+					column++;
+				}
+
+				offset++;
+				continue;
+			}
+
 			if (offset == primary_cursor) {
-				rel_cursor_col = column;
-				rel_cursor_row = i;
+				rel_caret_col = column;
+				rel_caret_row = i;
 			}
 
 			if (c == '\n')
 				break;
 
 			offset++;
-
-			if (c == '\t') {
-				int n_spaces = spt - (((int)col_offset + column) % spt);
-				for (int j = 0; j < n_spaces; j++) {
-					cells[idx + column] = empty;
-					column++;
-				}
-				continue;
-			}
 
 			if (c < ' ' || c > '~')
 				c = 0x7f;
@@ -111,10 +123,11 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 			column++;
 		}
 
+		// target_cursor_col is intentionally not updated here
 		if (mouse_held && mouse.y == i && !cursor_set) {
 			primary_cursor = offset;
-			rel_cursor_col = column;
-			rel_cursor_row = i;
+			rel_caret_col = column;
+			rel_caret_row = i;
 		}
 
 		for (int j = column; j < cols; j++)

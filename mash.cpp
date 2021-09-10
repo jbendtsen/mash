@@ -83,7 +83,7 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 			.view_origin = {0, 0},
 			.view_size = {(uint32_t)vk.wnd_width, (uint32_t)vk.wnd_height},
 			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
-			.cursor = {v.grid->rel_cursor_col, v.grid->rel_cursor_row},
+			.cursor = {v.grid->rel_caret_col, v.grid->rel_caret_row},
 			.cursor_color = cursor_color,
 			.columns = (uint32_t)v.grid->cols,
 			.grid_cell_offset = 0,
