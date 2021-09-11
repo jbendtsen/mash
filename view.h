@@ -37,7 +37,6 @@ struct Formatter {
 	Syntax_Mode modes[N_MODES];
 
 	int cur_mode;
-	int spaces_per_tab;
 
 	void get_current_attrs(uint32_t& fore, uint32_t& back, uint32_t& glyph_off, uint32_t& modifier) {
 		Syntax_Mode& mode = modes[cur_mode];
@@ -83,6 +82,8 @@ struct Grid {
 	bool chase_target;
 
 	int mode_at_current_line;
+
+	int spaces_per_tab;
 
 	void render_into(File *file, Cell *cells, Formatter *formatter, Mouse_State& mouse);
 	void adjust_offsets(File *file, int64_t move_down, int64_t move_right);

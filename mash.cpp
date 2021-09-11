@@ -159,22 +159,55 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 
 // This function **doesn't** get called from a different thread, so we can let it access globals
 static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-	int64_t move_down = 0;
-	int64_t move_right = 0;
+	bool action = true;
+	bool vertical = false;
+	int dir = 0;
 
 	if (action == GLFW_PRESS || action == GLFW_REPEAT) {
-		if (key == GLFW_KEY_UP)
-			move_down--;
-		else if (key == GLFW_KEY_DOWN)
-			move_down++;
-		else if (key == GLFW_KEY_LEFT)
-			move_right--;
-		else if (key == GLFW_KEY_RIGHT)
-			move_right++;
+		if (key == GLFW_KEY_UP) {
+			vertical = true;
+			dir = -1;
+		}
+		else if (key == GLFW_KEY_DOWN) {
+			vertical = true;
+			dir = 1;
+		}
+		else if (key == GLFW_KEY_LEFT) {
+			dir = -1;
+		}
+		else if (key == GLFW_KEY_RIGHT) {
+			dir = 1;
+		}
+		else
+			action = false;
+	}
+	else
+		action = false;
+
+	if (dir != 0) {
+		if (vertical) {
+			if (!was_vertical_movement) {
+				target_col = grid.rel_caret_col;
+				was_vertical_movement = true;
+			}
+
+			grid.move_cursor_vertically(file, dir, target_col);
+		}
+		else {
+			uint64_t cur = grid.primary_cursor + (int64_t)dir;
+			if (cur < 0) cur = 0;
+			if (cur > file.total_size) cur = file.total_size;
+			grid.primary_cursor = cur;
+		}
 	}
 
-	if (move_down != 0 || move_right != 0)
-		grid.adjust_offsets(&file, move_down, move_right);
+	if (action) {
+		if (grid.outside_grid(grid.primary_cursor))
+			grid.jump_to(grid.primary_cursor);
+	}
+
+	if (!vertical || dir == 0)
+		was_vertical_movement = false;
 
 	needs_resubmit = true;
 }
@@ -219,6 +252,8 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 	mouse_state.left_flags  = (mouse_state.left_flags & ~1) | (left_pressed & 1);
 	mouse_state.right_flags = (mouse_state.right_flags & ~1) | (right_pressed & 1);
 
+	was_vertical_movement = false;
+
 	needs_resubmit = true;
 }
 
@@ -244,8 +279,6 @@ int main(int argc, char **argv) {
 	// TODO: Use system DPI
 	font_render = size_up_font_render(font_face, 10, 96, 96);
 
-	formatter.spaces_per_tab = 4;
-
 	formatter.modes[0].fore_color_idx = 1;
 	formatter.modes[0].glyphset = 2; // italic
 
@@ -253,6 +286,8 @@ int main(int argc, char **argv) {
 	formatter.colors[1] = 0xf0f0f0ff;
 
 	cursor_color = 0xf0f0f0ff;
+
+	grid.spaces_per_tab = 4;
 
 	VkShaderModuleCreateInfo vertex_buf = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
