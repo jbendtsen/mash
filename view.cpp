@@ -83,7 +83,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		int column = 0;
 		int leading_cols = (int)(vis_cols - col_offset);
 
-		if (mouse_held && input.y == line && input.x < leading_cols) {
+		if (mouse_held && input.y == line && input.x >= 0 && input.x < leading_cols) {
 			new_cursor = offset;
 			hl = !hl;
 			cursor_set = true;
