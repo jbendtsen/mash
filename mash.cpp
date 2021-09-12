@@ -22,7 +22,7 @@ static File file = {0};
 static Grid grid = {0};
 static Formatter formatter = {0};
 
-static Mouse_State mouse_state = {0};
+static Input_State input_state = {0};
 
 static bool was_vertical_movement = false;
 
@@ -58,7 +58,7 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 
 	Cell *cells = (Cell*)vk.grids_pool.staging_area;
 	View& v = views[0];
-	v.grid->render_into(v.file, cells, v.formatter, mouse_state);
+	v.grid->render_into(v.file, cells, v.formatter, input_state);
 
 	int res = vk.push_to_gpu(vk.grids_pool, 0, v.grid->rows * v.grid->cols * sizeof(Cell));
 	if (res != 0)
@@ -147,7 +147,7 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 
 			needs_resubmit = false;
 
-			mouse_state.advance();
+			input_state.advance();
 		}
 
 		res = vk.render();
@@ -164,6 +164,9 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 	bool is_action = true;
 	bool vertical = false;
 	int dir = 0;
+
+	bool shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+	input_state.mod_flags = shift ? 1 : 0;
 
 	if (action == GLFW_PRESS || action == GLFW_REPEAT) {
 		if (key == GLFW_KEY_UP) {
@@ -208,6 +211,9 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 
 		if (!vertical || dir == 0)
 			was_vertical_movement = false;
+
+		if (!shift)
+			grid.secondary_cursor = grid.primary_cursor;
 	}
 
 	needs_resubmit = true;
@@ -250,8 +256,8 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 	bool left_pressed  = action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_LEFT;
 	bool right_pressed = action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_RIGHT;
 
-	mouse_state.left_flags  = (mouse_state.left_flags & ~1) | (left_pressed & 1);
-	mouse_state.right_flags = (mouse_state.right_flags & ~1) | (right_pressed & 1);
+	input_state.left_flags  = (input_state.left_flags & ~1) | (left_pressed & 1);
+	input_state.right_flags = (input_state.right_flags & ~1) | (right_pressed & 1);
 
 	was_vertical_movement = false;
 
@@ -259,10 +265,10 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 }
 
 static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
-	mouse_state.x = (int)xpos / font_render.glyph_w;
-	mouse_state.y = (int)ypos / font_render.glyph_h;
+	input_state.x = (int)xpos / font_render.glyph_w;
+	input_state.y = (int)ypos / font_render.glyph_h;
 
-	if (mouse_state.left_flags & 3)
+	if (input_state.left_flags & 3)
 		needs_resubmit = true;
 }
 
@@ -285,6 +291,7 @@ int main(int argc, char **argv) {
 
 	formatter.colors[0] = 0x080808ff;
 	formatter.colors[1] = 0xf0f0f0ff;
+	formatter.colors[2] = 0x282828ff;
 
 	cursor_color = 0xf0f0f0ff;
 

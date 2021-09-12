@@ -91,10 +91,11 @@ struct Formatter {
 	void update_highlighter(File *file, int64_t offset, char c);
 };
 
-struct Mouse_State {
+struct Input_State {
 	int left_flags;
 	int right_flags;
 	int x, y;
+	int mod_flags;
 
 	void advance() {
 		left_flags &= 1;
@@ -117,6 +118,7 @@ struct Grid {
 	int64_t row_offset;
 	int64_t col_offset;
 	int64_t primary_cursor;
+	int64_t secondary_cursor;
 
 	int rel_caret_col;
 	int rel_caret_row;
@@ -129,7 +131,7 @@ struct Grid {
 	int64_t grid_offset;
 	// Vector<int64_t> line_offsets;
 
-	void render_into(File *file, Cell *cells, Formatter *formatter, Mouse_State& mouse);
+	void render_into(File *file, Cell *cells, Formatter *formatter, Input_State& mouse);
 	void move_cursor_vertically(File *file, int dir, int64_t target_col);
 	void adjust_offsets(File *file, int64_t move_down, int64_t move_right);
 	void jump_to_offset(File *file, int64_t offset);
