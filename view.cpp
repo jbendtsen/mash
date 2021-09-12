@@ -14,12 +14,16 @@ void Formatter::update_highlighter(File *file, int64_t offset, char c) {
 }
 
 void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_State& input) {
-	Cell empty = {
-		.background = formatter->colors[0]
-	};
-
+	uint32_t default_bg = formatter->colors[0];
 	uint32_t hl_color = formatter->colors[2];
-	bool hl = false;
+
+	bool hl =
+		((primary_cursor < grid_offset && secondary_cursor >= grid_offset) ||
+		(primary_cursor >= grid_offset && secondary_cursor < grid_offset));
+
+	Cell empty = {
+		.background = hl ? hl_color : default_bg
+	};
 
 	rel_caret_col = -1;
 	rel_caret_row = -1;
@@ -67,7 +71,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		}
 
 		if (early_bail) {
-			empty.background = hl ? hl_color : formatter->colors[0];
+			empty.background = hl ? hl_color : default_bg;
 
 			for (int j = 0; j < cols; j++)
 				cells[idx++] = empty;
@@ -85,7 +89,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 			cursor_set = true;
 		}
 
-		empty.background = hl ? hl_color : formatter->colors[0];
+		empty.background = hl ? hl_color : default_bg;
 
 		for (column = 0; column < leading_cols; column++)
 			cells[idx + column] = empty;
@@ -149,7 +153,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 			rel_caret_row = line;
 		}
 
-		empty.background = hl ? hl_color : formatter->colors[0];
+		empty.background = hl ? hl_color : default_bg;
 
 		for (int j = column; j < cols; j++)
 			cells[idx + j] = empty;
@@ -168,7 +172,8 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 
 	primary_cursor = new_cursor;
 
-	if (!mouse_was_held && (input.mod_flags & 1) == 0)
+	//if (!input.should_hl) secondary_cursor = primary_cursor
+	if (mouse_held && !mouse_was_held)
 		secondary_cursor = primary_cursor;
 
 	int grid_size = rows * cols;

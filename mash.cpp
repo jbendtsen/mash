@@ -165,8 +165,8 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 	bool vertical = false;
 	int dir = 0;
 
-	bool shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
-	input_state.mod_flags = shift ? 1 : 0;
+	bool shift_held = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+	input_state.mod_flags = shift_held ? 1 : 0;
 
 	if (action == GLFW_PRESS || action == GLFW_REPEAT) {
 		if (key == GLFW_KEY_UP) {
@@ -212,7 +212,7 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 		if (!vertical || dir == 0)
 			was_vertical_movement = false;
 
-		if (!shift)
+		if (!shift_held)
 			grid.secondary_cursor = grid.primary_cursor;
 	}
 
