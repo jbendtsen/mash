@@ -1,5 +1,47 @@
 #pragma once
 
+template <typename T>
+struct Vector {
+	static constexpr int INLINE_SIZE = 16;
+
+	int cap;
+	int size;
+	T *data;
+	T stack[INLINE_SIZE];
+
+	Vector() {
+		cap = INLINE_SIZE;
+		size = INLINE_SIZE;
+		data = &stack[0];
+		stack = {0};
+	}
+	~Vector() {
+		if (data && data != &stack[0])
+			delete[] data;
+	}
+
+	void resize(int sz) {
+		int new_cap = cap;
+		while (sz > new_cap)
+			new_cap *= 2;
+
+		if (new_cap <= cap) {
+			size = sz;
+			return;
+		}
+
+		T *new_data = new T[new_cap]();
+		if (size > 0)
+			memcpy(new_data, data, size * sizeof(T));
+		if (data != &stack[0])
+			delete[] data;
+
+		data = new_data;
+		cap = new_cap;
+		size = sz;
+	}
+};
+
 struct File {
 	char os_handle[16];
 
@@ -74,19 +116,23 @@ struct Grid {
 	int cols;
 	int64_t row_offset;
 	int64_t col_offset;
-	int64_t line_offset;
 	int64_t primary_cursor;
 
 	int rel_caret_col;
 	int rel_caret_row;
-	bool chase_target;
+	int target_col;
 
 	int mode_at_current_line;
 
 	int spaces_per_tab;
 
+	int64_t grid_offset;
+	// Vector<int64_t> line_offsets;
+
 	void render_into(File *file, Cell *cells, Formatter *formatter, Mouse_State& mouse);
+	void move_cursor_vertically(File *file, int dir, int64_t target_col);
 	void adjust_offsets(File *file, int64_t move_down, int64_t move_right);
+	void jump_to_offset(File *file, int64_t offset);
 };
 
 struct View {

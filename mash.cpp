@@ -24,6 +24,8 @@ static Formatter formatter = {0};
 
 static Mouse_State mouse_state = {0};
 
+static bool was_vertical_movement = false;
+
 static bool needs_resubmit = true;
 
 const char **get_required_instance_extensions(uint32_t *n_inst_exts) {
@@ -159,7 +161,7 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 
 // This function **doesn't** get called from a different thread, so we can let it access globals
 static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-	bool action = true;
+	bool is_action = true;
 	bool vertical = false;
 	int dir = 0;
 
@@ -179,35 +181,34 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 			dir = 1;
 		}
 		else
-			action = false;
+			is_action = false;
 	}
 	else
-		action = false;
+		is_action = false;
 
 	if (dir != 0) {
 		if (vertical) {
 			if (!was_vertical_movement) {
-				target_col = grid.rel_caret_col;
+				grid.target_col = grid.rel_caret_col;
 				was_vertical_movement = true;
 			}
 
-			grid.move_cursor_vertically(file, dir, target_col);
+			grid.move_cursor_vertically(&file, dir, grid.target_col);
 		}
 		else {
-			uint64_t cur = grid.primary_cursor + (int64_t)dir;
+			int64_t cur = grid.primary_cursor + (int64_t)dir;
 			if (cur < 0) cur = 0;
 			if (cur > file.total_size) cur = file.total_size;
 			grid.primary_cursor = cur;
 		}
 	}
 
-	if (action) {
-		if (grid.outside_grid(grid.primary_cursor))
-			grid.jump_to(grid.primary_cursor);
-	}
+	if (is_action) {
+		grid.jump_to_offset(&file, grid.primary_cursor);
 
-	if (!vertical || dir == 0)
-		was_vertical_movement = false;
+		if (!vertical || dir == 0)
+			was_vertical_movement = false;
+	}
 
 	needs_resubmit = true;
 }

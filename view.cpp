@@ -1,7 +1,13 @@
-#include <cstdint>
-#include <cstring>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "font.h"
 #include "view.h"
+
+#ifndef alloca
+#define alloca _alloca
+#endif
 
 void Formatter::update_highlighter(File *file, int64_t offset, char c) {
 	
@@ -15,22 +21,28 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 	rel_caret_col = -1;
 	rel_caret_row = -1;
 
+	//line_offsets.resize(rows);
+
 	bool mouse_held     = (mouse.left_flags & 1) != 0;
 	bool mouse_was_held = (mouse.left_flags & 2) != 0;
 
 	int idx = 0;
-	int64_t offset = line_offset;
+	int64_t offset = grid_offset;
 
 	formatter->cur_mode = mode_at_current_line;
 
 	char *data = file->data;
 	int64_t total_size = file->total_size;
 
-	for (int i = 0; i < rows && offset < total_size; i++) {
+	// breaking from this outer loop would mess with the last element of line_offsets
+	int line = 0;
+	for ( ; line < rows && offset < total_size; line++) {
 		int64_t char_cols = 0;
 		int64_t vis_cols = 0;
 		bool early_bail = false;
 		bool cursor_set = false;
+
+		//line_offsets.data[line] = offset;
 
 		while (vis_cols < col_offset) {
 			char c = data[offset];
@@ -58,7 +70,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 		int column = 0;
 		int leading_cols = (int)(vis_cols - col_offset);
 
-		if (mouse_held && mouse.y == i && mouse.x < leading_cols) {
+		if (mouse_held && mouse.y == line && mouse.x < leading_cols) {
 			primary_cursor = offset;
 			cursor_set = true;
 		}
@@ -70,7 +82,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 			char c = data[offset];
 			formatter->update_highlighter(file, offset, c);
 
-			if (mouse_held && mouse.y == i && mouse.x == column) {
+			if (mouse_held && mouse.y == line && mouse.x == column) {
 				primary_cursor = offset;
 				cursor_set = true;
 			}
@@ -78,13 +90,13 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 			if (c == '\t') {
 				int n_spaces = spaces_per_tab - (((int)col_offset + column) % spaces_per_tab);
 
-				if (mouse_held && mouse.y == i && mouse.x >= column && mouse.x < column + n_spaces) {
+				if (mouse_held && mouse.y == line && mouse.x >= column && mouse.x < column + n_spaces) {
 					primary_cursor = offset;
 					cursor_set = true;
 				}
 				if (primary_cursor == offset) {
 					rel_caret_col = column;
-					rel_caret_row = i;
+					rel_caret_row = line;
 				}
 
 				for (int j = 0; j < n_spaces; j++) {
@@ -98,7 +110,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 
 			if (offset == primary_cursor) {
 				rel_caret_col = column;
-				rel_caret_row = i;
+				rel_caret_row = line;
 			}
 
 			if (c == '\n')
@@ -123,10 +135,10 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Mouse_Stat
 		}
 
 		// target_cursor_col is intentionally not updated here
-		if (mouse_held && mouse.y == i && !cursor_set) {
+		if (mouse_held && mouse.y == line && !cursor_set) {
 			primary_cursor = offset;
 			rel_caret_col = column;
-			rel_caret_row = i;
+			rel_caret_row = line;
 		}
 
 		for (int j = column; j < cols; j++)
@@ -170,7 +182,8 @@ void Grid::move_cursor_vertically(File *file, int dir, int64_t target_col) {
 		}
 	}
 	else {
-		for (int i = 0; i < dir+1; i++) {
+		int n = -dir + 1;
+		for (int i = 0; i < n; i++) {
 			while (offset > 0) {
 				char c = data[--offset];
 				if (c == '\n')
@@ -179,7 +192,7 @@ void Grid::move_cursor_vertically(File *file, int dir, int64_t target_col) {
 		}
 
 		if (offset > 0)
-			offset += 2;
+			offset++;
 	}
 
 	int64_t col = 0;
@@ -207,32 +220,33 @@ void Grid::adjust_offsets(File *file, int64_t move_down, int64_t move_right) {
 	int64_t size = file->total_size;
 
 	if (row_offset == 0) {
-		line_offset = 0;
+		grid_offset = 0;
 	}
 	else if (row_offset > old_row_off) {
 		int64_t r = old_row_off;
 
-		while (r < row_offset && line_offset < size) {
-			if (data[line_offset++] == '\n')
+		while (r < row_offset && grid_offset < size) {
+			if (data[grid_offset++] == '\n')
 				r++;
 		}
 	}
 	else if (row_offset < old_row_off) {
 		int64_t r = old_row_off;
 
-		while (r >= row_offset && line_offset > 0) {
-			if (data[--line_offset] == '\n')
+		while (r >= row_offset && grid_offset > 0) {
+			if (data[--grid_offset] == '\n')
 				r--;
 		}
-		line_offset++;
+		grid_offset++;
 	}
 }
 
-bool Grid::outside_grid(File *file, int64_t offset) {
-	if (offset < line_offset)
-		return true;
+void Grid::jump_to_offset(File *file, int64_t offset) {
+	if (offset < 0)
+		offset = 0;
+	if (offset > file->total_size)
+		offset = file->total_size;
 
-	int64_t off = line_offset;
 	int64_t row = 0;
 	int64_t col = 0;
 
@@ -243,34 +257,69 @@ bool Grid::outside_grid(File *file, int64_t offset) {
 	char *data = file->data;
 	int64_t size = file->total_size;
 
-	while (row < rows_64 && off <= size) {
-		if (off == offset)
-			return col < col_offset || col >= col_offset + cols_64;
+	if (offset < grid_offset) {
+		// aim for n_cols/2
 
-		char c = data[off++];
-		if (c == '\n') {
-			row++;
-			col = 0;
+		int64_t off = grid_offset;
+		int64_t lines_up = 0;
+
+		while (off > offset) {
+			char c = data[--off];
+			if (c == '\n') {
+				lines_up++;
+			}
 		}
-		else if (c == '\t')
-			col += spt_64 - (col % spt_64);
-		else
-			col++;
-	}
 
-	return true;
-}
+		row_offset -= lines_up;
+		off = offset;
 
-void Grid::jump_to(File *file, int64_t offset) {
-	if (offset < 0)
-		offset = 0;
-	if (offset > file->total_size)
-		offset = file->total_size;
+		while (off > 0) {
+			char c = data[--off];
+			if (c == '\n') {
+				off++;
+				break;
+			}
 
-	if (offset < line_offset) {
-		
+			// this is likely wrong
+			if (c == '\t')
+				col += spt_64 - (col % spt_64);
+			else
+				col++;
+		}
+
+		grid_offset = off;
 	}
 	else {
-		
+		int64_t off = grid_offset;
+		int64_t lines_down = 0;
+
+		int64_t *offset_list = (int64_t*)alloca(rows * sizeof(int64_t));
+		offset_list[0] = grid_offset;
+
+		while (off < offset) {
+			char c = data[off++];
+			if (c == '\n') {
+				lines_down++;
+				offset_list[lines_down % rows_64] = off;
+				col = 0;
+			}
+			else if (c == '\t')
+				col += spt_64 - (col % spt_64);
+			else
+				col++;
+		}
+
+		if (lines_down >= rows_64) {
+			grid_offset = offset_list[(lines_down + 1) % rows_64];
+			row_offset += lines_down - rows_64 + 1;
+		}
 	}
+
+	col_offset = 0;
+
+	int64_t mid = cols_64 / 2;
+	if (col >= cols_64)
+		col_offset = col - mid;
+
+	primary_cursor = offset;
 }
