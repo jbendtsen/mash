@@ -122,7 +122,8 @@ struct Grid {
 
 	int rel_caret_col;
 	int rel_caret_row;
-	int target_col;
+	int target_column;
+	int last_line_num_gap;
 
 	int mode_at_current_line;
 
@@ -132,7 +133,7 @@ struct Grid {
 	// Vector<int64_t> line_offsets;
 
 	void render_into(File *file, Cell *cells, Formatter *formatter, Input_State& mouse);
-	void move_cursor_vertically(File *file, int dir, int64_t target_col);
+	void move_cursor_vertically(File *file, int dir, int target_col);
 	void adjust_offsets(File *file, int64_t move_down, int64_t move_right);
 	void jump_to_offset(File *file, int64_t offset);
 };

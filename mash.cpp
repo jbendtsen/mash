@@ -85,7 +85,7 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 			.view_origin = {0, 0},
 			.view_size = {(uint32_t)vk.wnd_width, (uint32_t)vk.wnd_height},
 			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
-			.cursor = {v.grid->rel_caret_col, v.grid->rel_caret_row},
+			.cursor = {v.grid->rel_caret_col + v.grid->last_line_num_gap, v.grid->rel_caret_row},
 			.cursor_color = cursor_color,
 			.columns = (uint32_t)v.grid->cols,
 			.grid_cell_offset = 0,
@@ -192,11 +192,11 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 	if (dir != 0) {
 		if (vertical) {
 			if (!was_vertical_movement) {
-				grid.target_col = grid.rel_caret_col;
+				grid.target_column = grid.rel_caret_col;
 				was_vertical_movement = true;
 			}
 
-			grid.move_cursor_vertically(&file, dir, grid.target_col);
+			grid.move_cursor_vertically(&file, dir, grid.target_column);
 		}
 		else {
 			int64_t cur = grid.primary_cursor + (int64_t)dir;
@@ -292,6 +292,8 @@ int main(int argc, char **argv) {
 	formatter.colors[0] = 0x080808ff;
 	formatter.colors[1] = 0xf0f0f0ff;
 	formatter.colors[2] = 0x282828ff;
+	formatter.colors[3] = 0xb0b0b0ff;
+	formatter.colors[4] = 0x141414ff;
 
 	cursor_color = 0xf0f0f0ff;
 

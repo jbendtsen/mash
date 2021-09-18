@@ -13,13 +13,53 @@ void Formatter::update_highlighter(File *file, int64_t offset, char c) {
 	
 }
 
-void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_State& input) {
+void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_State& input)
+{
+	int line_num_gap = 0;
+	int total_line_num_gap = 0;
+	int ln_digit_width = 0;
+
+	{
+		int n_digits = 0;
+		int64_t n = row_offset + (int64_t)rows; // no -1 since line numbers are 1-indexed
+
+		if (n > 0) {
+			while (n) {
+				n /= 10;
+				n_digits++;
+			}
+			line_num_gap = n_digits + 3;
+		}
+	}
+
+	if (line_num_gap < 7)
+		line_num_gap = 7;
+
+	total_line_num_gap = line_num_gap;
+
+	if (line_num_gap > cols)
+		line_num_gap = cols;
+
+	ln_digit_width = total_line_num_gap - 3;
+	this->last_line_num_gap = total_line_num_gap;
+
+	char *ln_buf = (char*)alloca(ln_digit_width + 1);
+	ln_buf[ln_digit_width] = 0;
+
+	int64_t text_cols = cols - line_num_gap;
+	int mouse_x = input.x - line_num_gap;
+
 	uint32_t default_bg = formatter->colors[0];
 	uint32_t hl_color = formatter->colors[2];
 
 	bool hl =
 		((primary_cursor < grid_offset && secondary_cursor >= grid_offset) ||
 		(primary_cursor >= grid_offset && secondary_cursor < grid_offset));
+
+	Cell line_num_cell = {
+		.foreground = formatter->colors[3],
+		.background = formatter->colors[4]
+	};
 
 	Cell empty = {
 		.background = hl ? hl_color : default_bg
@@ -44,7 +84,29 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 
 	int line = 0;
 	for ( ; line < rows && offset < total_size; line++) {
-		int64_t char_cols = 0;
+		int64_t n = row_offset + (int64_t)line + 1; // +1 since line numbers are 1-indexed
+		for (int i = ln_digit_width-1; i >= 0; i--) {
+			if (n > 0) {
+				ln_buf[i] = '0' + (char)(n % 10);
+				n /= 10;
+			}
+			else
+				ln_buf[i] = ' ';
+		}
+
+		line_num_cell.glyph = 0;
+		cells[idx] = line_num_cell;
+
+		for (int i = 0; i < line_num_gap-1; i++) {
+			line_num_cell.glyph = i < ln_digit_width ? (uint32_t)(ln_buf[i] - ' ') : 0;
+			cells[idx + i+1] = line_num_cell;
+		}
+
+		if (line_num_gap >= cols) {
+			idx += cols;
+			continue;
+		}
+
 		int64_t vis_cols = 0;
 		bool early_bail = false;
 		bool cursor_set = false;
@@ -73,9 +135,10 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		if (early_bail) {
 			empty.background = hl ? hl_color : default_bg;
 
-			for (int j = 0; j < cols; j++)
-				cells[idx++] = empty;
+			for (int j = 0; j < text_cols; j++)
+				cells[line_num_gap + j] = empty;
 
+			idx += cols;
 			continue;
 		}
 
@@ -83,7 +146,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		int column = 0;
 		int leading_cols = (int)(vis_cols - col_offset);
 
-		if (mouse_held && input.y == line && input.x >= 0 && input.x < leading_cols) {
+		if (mouse_held && input.y == line && mouse_x >= 0 && mouse_x < leading_cols) {
 			new_cursor = offset;
 			hl = !hl;
 			cursor_set = true;
@@ -92,15 +155,15 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		empty.background = hl ? hl_color : default_bg;
 
 		for (column = 0; column < leading_cols; column++)
-			cells[idx + column] = empty;
+			cells[line_num_gap + idx + column] = empty;
 
-		while (column < cols && offset < total_size) {
+		while (column < text_cols && offset < total_size) {
 			char c = data[offset];
 			formatter->update_highlighter(file, offset, c);
 
 			int n_spaces = c == '\t' ? spaces_per_tab - (((int)col_offset + column) % spaces_per_tab) : 1;
 
-			if (mouse_held && input.y == line && input.x >= column && input.x < column + n_spaces) {
+			if (mouse_held && input.y == line && mouse_x >= column && mouse_x < column + n_spaces) {
 				new_cursor = offset;
 				cursor_set = true;
 			}
@@ -114,7 +177,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 
 			if (c == '\t') {
 				for (int j = 0; j < n_spaces; j++) {
-					cells[idx + column] = empty;
+					cells[line_num_gap + idx + column] = empty;
 					column++;
 				}
 
@@ -136,7 +199,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 			if (hl)
 				bg = hl_color;
 
-			cells[idx + column] = {
+			cells[line_num_gap + idx + column] = {
 				.glyph = (uint32_t)(c - ' ') + glyph_off,
 				.modifier = modifier,
 				.foreground = fg,
@@ -155,8 +218,8 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 
 		empty.background = hl ? hl_color : default_bg;
 
-		for (int j = column; j < cols; j++)
-			cells[idx + j] = empty;
+		for (int j = column; j < text_cols; j++)
+			cells[line_num_gap + idx + j] = empty;
 
 		idx += cols;
 
@@ -181,7 +244,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		cells[i] = empty;
 }
 
-void Grid::move_cursor_vertically(File *file, int dir, int64_t target_col) {
+void Grid::move_cursor_vertically(File *file, int dir, int target_col) {
 	char *data = file->data;
 	int64_t size = file->total_size;
 	int64_t spt_64 = (int64_t)spaces_per_tab;
@@ -278,8 +341,6 @@ void Grid::jump_to_offset(File *file, int64_t offset) {
 	int64_t size = file->total_size;
 
 	if (offset < grid_offset) {
-		// aim for n_cols/2
-
 		int64_t off = grid_offset;
 		int64_t lines_up = 0;
 
