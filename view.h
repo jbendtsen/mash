@@ -1,6 +1,6 @@
 #pragma once
 
-#define THUMB_SIZE 16
+#define THUMB_WIDTH 16
 
 template <typename T>
 struct Vector {
@@ -96,6 +96,8 @@ struct Formatter {
 struct Input_State {
 	int left_flags;
 	int right_flags;
+	int column;
+	int row;
 	int x, y;
 	int mod_flags;
 
@@ -125,7 +127,9 @@ struct Grid {
 	int rel_caret_col;
 	int rel_caret_row;
 	int target_column;
+
 	int last_line_num_gap;
+	bool text_held;
 
 	int mode_at_current_line;
 
@@ -135,7 +139,7 @@ struct Grid {
 	int64_t end_grid_offset;
 	// Vector<int64_t> line_offsets;
 
-	void render_into(File *file, Cell *cells, Formatter *formatter, Input_State& mouse);
+	void render_into(File *file, Cell *cells, Formatter *formatter, Input_State& mouse, int wnd_width, int wnd_height);
 	void move_cursor_vertically(File *file, int dir, int target_col);
 	void adjust_offsets(File *file, int64_t move_down, int64_t move_right);
 	void jump_to_offset(File *file, int64_t offset);

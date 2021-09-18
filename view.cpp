@@ -13,7 +13,7 @@ void Formatter::update_highlighter(File *file, int64_t offset, char c) {
 	
 }
 
-void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_State& input)
+void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_State& input, int wnd_width, int wnd_height)
 {
 	int line_num_gap = 0;
 	int total_line_num_gap = 0;
@@ -46,9 +46,6 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 	char *ln_buf = (char*)alloca(ln_digit_width + 1);
 	ln_buf[ln_digit_width] = 0;
 
-	int64_t text_cols = cols - line_num_gap;
-	int mouse_x = input.x - line_num_gap;
-
 	uint32_t default_bg = formatter->colors[0];
 	uint32_t hl_color = formatter->colors[2];
 
@@ -68,14 +65,20 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 	this->rel_caret_col = -1;
 	this->rel_caret_row = -1;
 
-	//line_offsets.resize(rows);
+	int mouse_col = input.column - line_num_gap;
 
 	bool mouse_held     = (input.left_flags & 1) != 0;
 	bool mouse_was_held = (input.left_flags & 2) != 0;
 
+	if (mouse_held && !mouse_was_held && mouse_col >= 0 && input.x < wnd_width - THUMB_WIDTH)
+		this->text_held = true;
+	if (!mouse_held)
+		this->text_held = false;
+
 	int idx = 0;
 	int64_t offset = grid_offset;
 	int64_t new_cursor = primary_cursor;
+	int64_t text_cols = cols - line_num_gap;
 
 	formatter->cur_mode = mode_at_current_line;
 
@@ -111,8 +114,6 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		bool early_bail = false;
 		bool cursor_set = false;
 
-		//line_offsets.data[line] = offset;
-
 		while (vis_cols < col_offset) {
 			char c = data[offset];
 			formatter->update_highlighter(file, offset, c);
@@ -146,7 +147,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		int column = 0;
 		int leading_cols = (int)(vis_cols - col_offset);
 
-		if (mouse_held && input.y == line && mouse_x >= 0 && mouse_x < leading_cols) {
+		if (text_held && input.row == line && mouse_col >= 0 && mouse_col < leading_cols) {
 			new_cursor = offset;
 			hl = !hl;
 			cursor_set = true;
@@ -163,7 +164,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 
 			int n_spaces = c == '\t' ? spaces_per_tab - (((int)col_offset + column) % spaces_per_tab) : 1;
 
-			if (mouse_held && input.y == line && mouse_x >= column && mouse_x < column + n_spaces) {
+			if (text_held && input.row == line && mouse_col >= column && mouse_col < column + n_spaces) {
 				new_cursor = offset;
 				cursor_set = true;
 			}
@@ -210,7 +211,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		}
 
 		// target_cursor_col is intentionally not updated here
-		if (mouse_held && input.y == line && !cursor_set) {
+		if (text_held && input.row == line && !cursor_set) {
 			new_cursor = offset;
 			rel_caret_col = column;
 			rel_caret_row = line;
@@ -237,7 +238,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 	this->primary_cursor = new_cursor;
 
 	//if (!input.should_hl) secondary_cursor = primary_cursor
-	if (mouse_held && !mouse_was_held)
+	if (text_held && !mouse_was_held)
 		secondary_cursor = primary_cursor;
 
 	int grid_size = rows * cols;

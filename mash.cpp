@@ -58,7 +58,7 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 
 	Cell *cells = (Cell*)vk.grids_pool.staging_area;
 	View& v = views[0];
-	v.grid->render_into(v.file, cells, v.formatter, input_state);
+	v.grid->render_into(v.file, cells, v.formatter, input_state, vk.wnd_width, vk.wnd_height);
 
 	int res = vk.push_to_gpu(vk.grids_pool, 0, v.grid->rows * v.grid->cols * sizeof(Cell));
 	if (res != 0)
@@ -273,8 +273,10 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 }
 
 static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
-	input_state.x = (int)xpos / font_render.glyph_w;
-	input_state.y = (int)ypos / font_render.glyph_h;
+	input_state.x = (int)xpos;
+	input_state.y = (int)ypos;
+	input_state.column = input_state.x / font_render.glyph_w;
+	input_state.row = input_state.y / font_render.glyph_h;
 
 	if (input_state.left_flags & 3)
 		needs_resubmit = true;
