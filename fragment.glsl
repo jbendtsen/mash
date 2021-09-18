@@ -1,6 +1,7 @@
 #version 450
 
 const uint N_GLYPHS = 384;
+const uint THUMB_WIDTH = 16;
 
 struct Cell {
 	uint glyph;
@@ -21,7 +22,9 @@ layout (push_constant) uniform PARAMS {
 	uvec2 view_origin;
 	uvec2 view_size;
 	uvec2 cell_size;
+	uvec2 thumb_pos;
 	ivec2 cursor;
+	uint thumb_color;
 	uint cursor_color;
 	uint columns;
 	uint grid_cell_offset;     // offset in cells (16 or so bytes)
@@ -47,6 +50,14 @@ vec3 get_color(uint c) {
 
 void main() {
 	uvec2 view_pos = uvec2(gl_FragCoord.xy) - params.view_origin;
+
+	if (view_pos.x >= params.view_size.x - THUMB_WIDTH &&
+		view_pos.y >= params.thumb_pos.x &&
+		view_pos.y < params.thumb_pos.x + params.thumb_pos.y
+	) {
+		outColor = vec4(get_color(params.thumb_color), 1.0);
+		return;
+	}
 
 	uint cell_w = params.cell_size.x;
 	uint full_cell_w = params.glyph_full_w;

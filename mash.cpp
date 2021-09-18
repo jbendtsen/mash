@@ -81,11 +81,19 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 	for (int i = 0; i < vk.n_view_params; i++) {
 		Font_Render *r = &renders[views[i].font_render_idx];
 
+		int64_t grid_length = v.grid->end_grid_offset - v.grid->grid_offset;
+		double pos = (double)v.grid->grid_offset / (double)(v.file->total_size - grid_length);
+
+		uint32_t thumb_h = vk.wnd_height / 6;
+		uint32_t thumb_y = (uint32_t)(pos * (double)(vk.wnd_height - thumb_h) + 0.5);
+
 		vk.view_params[i] = {
 			.view_origin = {0, 0},
 			.view_size = {(uint32_t)vk.wnd_width, (uint32_t)vk.wnd_height},
 			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
+			.thumb_pos = {thumb_y, thumb_h},
 			.cursor = {v.grid->rel_caret_col + v.grid->last_line_num_gap, v.grid->rel_caret_row},
+			.thumb_color = 0x808080ff,
 			.cursor_color = cursor_color,
 			.columns = (uint32_t)v.grid->cols,
 			.grid_cell_offset = 0,

@@ -1,5 +1,7 @@
 #pragma once
 
+#define THUMB_SIZE 16
+
 template <typename T>
 struct Vector {
 	static constexpr int INLINE_SIZE = 16;
@@ -130,6 +132,7 @@ struct Grid {
 	int spaces_per_tab;
 
 	int64_t grid_offset;
+	int64_t end_grid_offset;
 	// Vector<int64_t> line_offsets;
 
 	void render_into(File *file, Cell *cells, Formatter *formatter, Input_State& mouse);

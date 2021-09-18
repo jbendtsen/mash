@@ -22,7 +22,9 @@ struct View_Params {
 	uvec2 view_origin;
 	uvec2 view_size;
 	uvec2 cell_size;
-	ivec2 cursor;
+	uvec2 thumb_pos;
+	ivec2 cursor; 
+	uint32_t thumb_color;
 	uint32_t cursor_color;
 	uint32_t columns;
 	uint32_t grid_cell_offset;

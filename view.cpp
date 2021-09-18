@@ -65,8 +65,8 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		.background = hl ? hl_color : default_bg
 	};
 
-	rel_caret_col = -1;
-	rel_caret_row = -1;
+	this->rel_caret_col = -1;
+	this->rel_caret_row = -1;
 
 	//line_offsets.resize(rows);
 
@@ -233,7 +233,8 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		}
 	}
 
-	primary_cursor = new_cursor;
+	this->end_grid_offset = offset;
+	this->primary_cursor = new_cursor;
 
 	//if (!input.should_hl) secondary_cursor = primary_cursor
 	if (mouse_held && !mouse_was_held)
