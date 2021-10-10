@@ -106,6 +106,11 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 		}
 
 		if (line_num_gap >= cols) {
+			empty.background = hl ? hl_color : default_bg;
+
+			for (int j = 0; j < text_cols; j++)
+				cells[idx + line_num_gap + j] = empty;
+
 			idx += cols;
 			continue;
 		}
@@ -137,7 +142,7 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 			empty.background = hl ? hl_color : default_bg;
 
 			for (int j = 0; j < text_cols; j++)
-				cells[line_num_gap + j] = empty;
+				cells[idx + line_num_gap + j] = empty;
 
 			idx += cols;
 			continue;

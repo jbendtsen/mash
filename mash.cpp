@@ -191,6 +191,14 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_RIGHT) {
 			dir = 1;
 		}
+		else if (key == GLFW_KEY_PAGE_UP) {
+			vertical = true;
+			dir = -grid.rows;
+		}
+		else if (key == GLFW_KEY_PAGE_DOWN) {
+			vertical = true;
+			dir = grid.rows;
+		}
 		else
 			is_action = false;
 	}
