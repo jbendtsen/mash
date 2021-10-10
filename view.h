@@ -1,6 +1,7 @@
 #pragma once
 
 #define THUMB_WIDTH 16
+#define THUMB_FRAC 0.15625
 
 template <typename T>
 struct Vector {
@@ -100,6 +101,8 @@ struct Input_State {
 	int row;
 	int x, y;
 	int mod_flags;
+	int thumb_inner_pos;
+	int thumb_flags;
 
 	void advance() {
 		left_flags &= 1;
@@ -142,7 +145,7 @@ struct Grid {
 	void render_into(File *file, Cell *cells, Formatter *formatter, Input_State& mouse, int wnd_width, int wnd_height);
 	void move_cursor_vertically(File *file, int dir, int target_col);
 	void adjust_offsets(File *file, int64_t move_down, int64_t move_right);
-	void jump_to_offset(File *file, int64_t offset);
+	int64_t jump_to_offset(File *file, int64_t offset);
 };
 
 struct View {

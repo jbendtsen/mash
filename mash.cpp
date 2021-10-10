@@ -13,6 +13,8 @@
 //#define DEFAULT_FONT_PATH "content/RobotoMono-Regular.ttf"
 #define DEFAULT_FONT_PATH "content/Monaco_Regular.ttf"
 
+static Vulkan vk;
+
 static uint32_t cursor_color = 0;
 
 static Font_Handle font_face = nullptr;
@@ -28,6 +30,14 @@ static bool was_vertical_movement = false;
 
 static bool needs_resubmit = true;
 
+void get_thumb_position(Grid *g, int64_t file_size, int& y, int& h) {
+	int64_t grid_length = g->end_grid_offset - g->grid_offset;
+	double pos = (double)g->grid_offset / (double)(file_size - grid_length);
+
+	h = (double)vk.wnd_height * THUMB_FRAC;
+	y = (int)(pos * (double)(vk.wnd_height - h) + 0.5);
+}
+
 const char **get_required_instance_extensions(uint32_t *n_inst_exts) {
 	return glfwGetRequiredInstanceExtensions(n_inst_exts);
 }
@@ -36,7 +46,7 @@ VkResult create_window_surface(VkInstance& instance, void *window, VkSurfaceKHR 
 	return glfwCreateWindowSurface(instance, (GLFWwindow*)window, nullptr, surface);
 }
 
-int upload_glyphsets(Vulkan& vk, Font_Handle fh, Font_Render *renders, int n_renders) {
+int upload_glyphsets(Font_Handle fh, Font_Render *renders, int n_renders) {
 	if (!vk.glyphset_pool.size) {
 		vk.glyphset_pool = vk.allocate_gpu_memory(GLYPHSET_POOL_SIZE);
 		if (!vk.glyphset_pool.size)
@@ -49,7 +59,7 @@ int upload_glyphsets(Vulkan& vk, Font_Handle fh, Font_Render *renders, int n_ren
 	return vk.push_to_gpu(vk.glyphset_pool, 0, renders[0].total_size);
 }
 
-int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *renders) {
+int render_and_upload_views(View *views, int n_views, Font_Render *renders) {
 	if (!vk.grids_pool.size) {
 		vk.grids_pool = vk.allocate_gpu_memory(GRIDS_POOL_SIZE);
 		if (!vk.grids_pool.size)
@@ -81,17 +91,14 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 	for (int i = 0; i < vk.n_view_params; i++) {
 		Font_Render *r = &renders[views[i].font_render_idx];
 
-		int64_t grid_length = v.grid->end_grid_offset - v.grid->grid_offset;
-		double pos = (double)v.grid->grid_offset / (double)(v.file->total_size - grid_length);
-
-		uint32_t thumb_h = vk.wnd_height / 6;
-		uint32_t thumb_y = (uint32_t)(pos * (double)(vk.wnd_height - thumb_h) + 0.5);
+		int thumb_y, thumb_h;
+		get_thumb_position(v.grid, v.file->total_size, thumb_y, thumb_h);
 
 		vk.view_params[i] = {
 			.view_origin = {0, 0},
 			.view_size = {(uint32_t)vk.wnd_width, (uint32_t)vk.wnd_height},
 			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
-			.thumb_pos = {thumb_y, thumb_h},
+			.thumb_pos = {(uint32_t)thumb_y, (uint32_t)thumb_h},
 			.cursor = {v.grid->rel_caret_col + v.grid->last_line_num_gap, v.grid->rel_caret_row},
 			.thumb_color = 0x808080ff,
 			.cursor_color = cursor_color,
@@ -106,8 +113,8 @@ int render_and_upload_views(Vulkan& vk, View *views, int n_views, Font_Render *r
 	return 0;
 }
 
-int start_app(Vulkan& vk, GLFWwindow *window) {
-	auto resize_grid = [&vk](Grid& g) {
+int start_app(GLFWwindow *window) {
+	auto resize_grid = [](Grid& g) {
 		g.rows = (vk.wnd_height + font_render.glyph_h - 1) / font_render.glyph_h;
 		g.cols = (vk.wnd_width + font_render.glyph_w - 1) / font_render.glyph_w;
 	};
@@ -120,10 +127,10 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 		.font_render_idx = 0
 	};
 
-	int res = upload_glyphsets(vk, font_face, &font_render, 1);
+	int res = upload_glyphsets(font_face, &font_render, 1);
 	if (res != 0) return res;
 
-	res = render_and_upload_views(vk, &view, 1, &font_render);
+	res = render_and_upload_views(&view, 1, &font_render);
 	if (res != 0) return res;
 
 	res = vk.create_descriptor_set();
@@ -147,7 +154,7 @@ int start_app(Vulkan& vk, GLFWwindow *window) {
 		if (needs_resubmit) {
 			resize_grid(grid);
 
-			res = render_and_upload_views(vk, &view, 1, &font_render);
+			res = render_and_upload_views(&view, 1, &font_render);
 			if (res != 0) return res;
 
 			res = vk.update_command_buffers();
@@ -192,12 +199,12 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 			dir = 1;
 		}
 		else if (key == GLFW_KEY_PAGE_UP) {
-			vertical = true;
-			dir = -grid.rows;
+			grid.adjust_offsets(&file, -grid.rows, 0);
+			is_action = false;
 		}
 		else if (key == GLFW_KEY_PAGE_DOWN) {
-			vertical = true;
-			dir = grid.rows;
+			grid.adjust_offsets(&file, grid.rows, 0);
+			is_action = false;
 		}
 		else
 			is_action = false;
@@ -223,7 +230,7 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 	}
 
 	if (is_action) {
-		grid.jump_to_offset(&file, grid.primary_cursor);
+		grid.primary_cursor = grid.jump_to_offset(&file, grid.primary_cursor);
 
 		if (!vertical || dir == 0)
 			was_vertical_movement = false;
@@ -275,6 +282,25 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 	input_state.left_flags  = (input_state.left_flags & ~1) | (left_pressed & 1);
 	input_state.right_flags = (input_state.right_flags & ~1) | (right_pressed & 1);
 
+	if (!left_pressed)
+		input_state.thumb_flags &= ~1;
+
+	if ((input_state.left_flags & 3) == 1 && input_state.x >= vk.wnd_width - THUMB_WIDTH) {
+		int thumb_y, thumb_h;
+		get_thumb_position(&grid, file.total_size, thumb_y, thumb_h);
+
+		int pos = input_state.y - thumb_y;
+		if (input_state.y < thumb_y) {
+			pos = 0;
+		}
+		else if (input_state.y >= thumb_y + thumb_h) {
+			pos = thumb_y + thumb_h;
+		}
+
+		input_state.thumb_inner_pos = pos;
+		input_state.thumb_flags |= 1;
+	}
+
 	was_vertical_movement = false;
 
 	needs_resubmit = true;
@@ -285,6 +311,14 @@ static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
 	input_state.y = (int)ypos;
 	input_state.column = input_state.x / font_render.glyph_w;
 	input_state.row = input_state.y / font_render.glyph_h;
+
+	if (input_state.thumb_flags & 1) {
+		int64_t grid_length = grid.end_grid_offset - grid.grid_offset;
+		double total_length = file.total_size - grid_length;
+		double len_per_pixel = total_length / (double)vk.wnd_height;
+		double y = input_state.y - input_state.thumb_inner_pos;
+		grid.jump_to_offset(&file, (int64_t)(y * len_per_pixel));
+	}
 
 	if (input_state.left_flags & 3)
 		needs_resubmit = true;
@@ -354,13 +388,12 @@ int main(int argc, char **argv) {
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetCursorPosCallback(window, cursor_callback);
 
-	Vulkan vk;
 	vk.glfw_monitor = (void*)monitor;
 	vk.glfw_window = (void*)window;
 
 	int res = init_vulkan(vk, vertex_buf, fragment_buf, width, height);
 	if (res == 0)
-		res = start_app(vk, window);
+		res = start_app(window);
 
 	file.close();
 

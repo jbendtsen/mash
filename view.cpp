@@ -331,7 +331,7 @@ void Grid::adjust_offsets(File *file, int64_t move_down, int64_t move_right) {
 	}
 }
 
-void Grid::jump_to_offset(File *file, int64_t offset) {
+int64_t Grid::jump_to_offset(File *file, int64_t offset) {
 	if (offset < 0)
 		offset = 0;
 	if (offset > file->total_size)
@@ -409,5 +409,6 @@ void Grid::jump_to_offset(File *file, int64_t offset) {
 	if (col >= cols_64)
 		col_offset = col - mid;
 
-	primary_cursor = offset;
+	//primary_cursor = offset;
+	return offset;
 }
