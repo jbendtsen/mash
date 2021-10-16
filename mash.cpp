@@ -30,6 +30,14 @@ static bool was_vertical_movement = false;
 
 static bool needs_resubmit = true;
 
+const char **get_required_instance_extensions(uint32_t *n_inst_exts) {
+	return glfwGetRequiredInstanceExtensions(n_inst_exts);
+}
+
+VkResult create_window_surface(VkInstance& instance, void *window, VkSurfaceKHR *surface) {
+	return glfwCreateWindowSurface(instance, (GLFWwindow*)window, nullptr, surface);
+}
+
 void get_thumb_position(Grid *g, int64_t file_size, int& y, int& h) {
 	int64_t grid_length = g->end_grid_offset - g->grid_offset;
 	double pos = (double)g->grid_offset / (double)(file_size - grid_length);
@@ -38,12 +46,14 @@ void get_thumb_position(Grid *g, int64_t file_size, int& y, int& h) {
 	y = (int)(pos * (double)(vk.wnd_height - h) + 0.5);
 }
 
-const char **get_required_instance_extensions(uint32_t *n_inst_exts) {
-	return glfwGetRequiredInstanceExtensions(n_inst_exts);
-}
+int64_t get_file_offset_from_thumb(Grid *g, int64_t file_size) {
+	int64_t grid_length = g->end_grid_offset - g->grid_offset;
+	double total_length = file_size - grid_length;
 
-VkResult create_window_surface(VkInstance& instance, void *window, VkSurfaceKHR *surface) {
-	return glfwCreateWindowSurface(instance, (GLFWwindow*)window, nullptr, surface);
+	double len_per_pixel = total_length / ((double)vk.wnd_height * (1.0 - THUMB_FRAC));
+	double y = input_state.y - input_state.thumb_inner_pos;
+
+	return (int64_t)(y * len_per_pixel);
 }
 
 int upload_glyphsets(Font_Handle fh, Font_Render *renders, int n_renders) {
@@ -296,15 +306,25 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		get_thumb_position(&grid, file.total_size, thumb_y, thumb_h);
 
 		int pos = input_state.y - thumb_y;
+		bool should_jump = true;
+
 		if (input_state.y < thumb_y) {
 			pos = 0;
 		}
 		else if (input_state.y >= thumb_y + thumb_h) {
-			pos = thumb_y + thumb_h;
+			pos = thumb_h;
+		}
+		else {
+			should_jump = false;
 		}
 
 		input_state.thumb_inner_pos = pos;
 		input_state.thumb_flags |= 1;
+
+		if (should_jump) {
+			int64_t offset = get_file_offset_from_thumb(&grid, file.total_size);
+			grid.jump_to_offset(&file, offset, JUMP_FLAG_TOP);
+		}
 	}
 
 	was_vertical_movement = false;
@@ -319,14 +339,8 @@ static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
 	input_state.row = input_state.y / font_render.glyph_h;
 
 	if (input_state.thumb_flags & 1) {
-		int64_t grid_length = grid.end_grid_offset - grid.grid_offset;
-		double total_length = file.total_size - grid_length;
-
-		double len_per_pixel = total_length / ((double)vk.wnd_height * (1.0 - THUMB_FRAC));
-		double y = input_state.y - input_state.thumb_inner_pos;
-
-		int64_t pos = (int64_t)(y * len_per_pixel);
-		grid.jump_to_offset(&file, pos, JUMP_FLAG_TOP);
+		int64_t offset = get_file_offset_from_thumb(&grid, file.total_size);
+		grid.jump_to_offset(&file, offset, JUMP_FLAG_TOP);
 	}
 
 	int was_hovered = input_state.thumb_flags & 2;
@@ -364,8 +378,8 @@ int main(int argc, char **argv) {
 	formatter.colors[4] = 0x141414ff;
 
 	formatter.active_thumb_color = 0x808080ff;
-	formatter.hovered_thumb_color = 0x404040ff;
-	formatter.inactive_thumb_color = 0x202020ff;
+	formatter.hovered_thumb_color = 0x303030ff;
+	formatter.inactive_thumb_color = 0x181818ff;
 
 	cursor_color = 0xf0f0f0ff;
 
