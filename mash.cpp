@@ -230,7 +230,7 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 	}
 
 	if (is_action) {
-		grid.primary_cursor = grid.jump_to_offset(&file, grid.primary_cursor);
+		grid.primary_cursor = grid.jump_to_offset(&file, grid.primary_cursor, JUMP_FLAG_AFFECT_COLUMN);
 
 		if (!vertical || dir == 0)
 			was_vertical_movement = false;
@@ -315,9 +315,12 @@ static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
 	if (input_state.thumb_flags & 1) {
 		int64_t grid_length = grid.end_grid_offset - grid.grid_offset;
 		double total_length = file.total_size - grid_length;
-		double len_per_pixel = total_length / (double)vk.wnd_height;
+
+		double len_per_pixel = total_length / ((double)vk.wnd_height * (1.0 - THUMB_FRAC));
 		double y = input_state.y - input_state.thumb_inner_pos;
-		grid.jump_to_offset(&file, (int64_t)(y * len_per_pixel));
+
+		int64_t pos = (int64_t)(y * len_per_pixel);
+		grid.jump_to_offset(&file, pos, JUMP_FLAG_TOP);
 	}
 
 	if (input_state.left_flags & 3)

@@ -331,7 +331,7 @@ void Grid::adjust_offsets(File *file, int64_t move_down, int64_t move_right) {
 	}
 }
 
-int64_t Grid::jump_to_offset(File *file, int64_t offset) {
+int64_t Grid::jump_to_offset(File *file, int64_t offset, int flags) {
 	if (offset < 0)
 		offset = 0;
 	if (offset > file->total_size)
@@ -379,6 +379,7 @@ int64_t Grid::jump_to_offset(File *file, int64_t offset) {
 	}
 	else {
 		int64_t off = grid_offset;
+		int64_t line_offset = grid_offset;
 		int64_t lines_down = 0;
 
 		int64_t *offset_list = (int64_t*)alloca(rows * sizeof(int64_t));
@@ -389,6 +390,7 @@ int64_t Grid::jump_to_offset(File *file, int64_t offset) {
 			if (c == '\n') {
 				lines_down++;
 				offset_list[lines_down % rows_64] = off;
+				line_offset = off;
 				col = 0;
 			}
 			else if (c == '\t')
@@ -397,17 +399,23 @@ int64_t Grid::jump_to_offset(File *file, int64_t offset) {
 				col++;
 		}
 
-		if (lines_down >= rows_64) {
+		if (flags & JUMP_FLAG_TOP) {
+			grid_offset = line_offset;
+			row_offset += lines_down;
+		}
+		else if (lines_down >= rows_64) {
 			grid_offset = offset_list[(lines_down + 1) % rows_64];
 			row_offset += lines_down - rows_64 + 1;
 		}
 	}
 
-	col_offset = 0;
+	if (flags & JUMP_FLAG_AFFECT_COLUMN) {
+		col_offset = 0;
 
-	int64_t mid = cols_64 / 2;
-	if (col >= cols_64)
-		col_offset = col - mid;
+		int64_t mid = cols_64 / 2;
+		if (col >= cols_64)
+			col_offset = col - mid;
+	}
 
 	//primary_cursor = offset;
 	return offset;
