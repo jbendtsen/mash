@@ -894,7 +894,7 @@ int Vulkan::render() {
 		FAIL_IF(res != VK_SUCCESS, "vkAcquireNextImageKHR() failed (%d)\n", res)
 
 	res = vkWaitForFences(device, 1, &draw_fence, VK_TRUE, -1);
-			FAIL_IF(res != VK_SUCCESS, "vkWaitForFences() failed (%d)\n", res)
+		FAIL_IF(res != VK_SUCCESS, "vkWaitForFences() failed (%d)\n", res)
 
 	res = vkResetFences(device, 1, &draw_fence);
 		FAIL_IF(res != VK_SUCCESS, "vkResetFences() failed (%d)\n", res)

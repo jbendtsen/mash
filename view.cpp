@@ -86,7 +86,10 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 	int64_t total_size = file->total_size;
 
 	int line = 0;
-	for ( ; line < rows && offset < total_size; line++) {
+	for ( ; line < rows && offset <= total_size; line++) {
+		if (total_size > 0 && offset == total_size && data[offset-1] != '\n')
+			break;
+
 		int64_t n = row_offset + (int64_t)line + 1; // +1 since line numbers are 1-indexed
 		for (int i = ln_digit_width-1; i >= 0; i--) {
 			if (n > 0) {
@@ -105,13 +108,17 @@ void Grid::render_into(File *file, Cell *cells, Formatter *formatter, Input_Stat
 			cells[idx + i+1] = line_num_cell;
 		}
 
-		if (line_num_gap >= cols) {
+		if (line_num_gap >= cols || offset >= total_size) {
 			empty.background = hl ? hl_color : default_bg;
 
 			for (int j = 0; j < text_cols; j++)
 				cells[idx + line_num_gap + j] = empty;
 
 			idx += cols;
+
+			if (offset >= total_size)
+				break;
+
 			continue;
 		}
 
@@ -299,39 +306,56 @@ void Grid::move_cursor_vertically(File *file, int dir, int target_col) {
 }
 
 void Grid::adjust_offsets(File *file, int64_t move_down, int64_t move_right) {
-	int64_t old_row_off = row_offset;
-	int64_t temp = row_offset + move_down;
-	row_offset = temp >= 0 ? temp : 0;
-
-	temp = col_offset + move_right;
-	col_offset = temp >= 0 ? temp : 0;
-
 	char *data = file->data;
 	int64_t size = file->total_size;
+	if (!data || size <= 0)
+		return;
 
-	if (row_offset == 0) {
+	col_offset += move_right;
+	if (col_offset < 0) col_offset = 0;
+
+	int64_t old_row_off = row_offset;
+	row_offset += move_down;
+
+	if (row_offset <= 0) {
+		row_offset = 0;
 		grid_offset = 0;
+		return;
 	}
-	else if (row_offset > old_row_off) {
-		int64_t r = old_row_off;
 
-		while (r < row_offset && grid_offset < size) {
-			if (data[grid_offset++] == '\n')
+	int64_t r = old_row_off;
+	int64_t off = grid_offset;
+
+	if (row_offset > old_row_off) {
+		while (r < row_offset && off < size) {
+			if (data[off++] == '\n') {
+				grid_offset = off;
 				r++;
+			}
 		}
+
+		row_offset = r;
 	}
 	else if (row_offset < old_row_off) {
 		int64_t r = old_row_off;
+		int64_t off = grid_offset;
 
-		while (r >= row_offset && grid_offset > 0) {
-			if (data[--grid_offset] == '\n')
+		while (r >= row_offset && off > 0) {
+			if (data[--off] == '\n') {
+				grid_offset = off;
 				r--;
+			}
 		}
-		grid_offset++;
+
+		grid_offset = off + 1;
+		row_offset = r + 1;
 	}
 }
 
 int64_t Grid::jump_to_offset(File *file, int64_t offset, int flags) {
+	if (!rows)
+		return 0;
+
 	if (offset < 0)
 		offset = 0;
 	if (offset > file->total_size)
