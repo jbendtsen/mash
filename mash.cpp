@@ -94,13 +94,19 @@ int render_and_upload_views(View *views, int n_views, Font_Render *renders) {
 		int thumb_y, thumb_h;
 		get_thumb_position(v.grid, v.file->total_size, thumb_y, thumb_h);
 
+		uint32_t thumb_color = v.formatter->inactive_thumb_color;
+		if (input_state.thumb_flags & 1)
+			thumb_color = v.formatter->active_thumb_color;
+		else if (input_state.thumb_flags & 2)
+			thumb_color = v.formatter->hovered_thumb_color;
+
 		vk.view_params[i] = {
 			.view_origin = {0, 0},
 			.view_size = {(uint32_t)vk.wnd_width, (uint32_t)vk.wnd_height},
 			.cell_size = {(uint32_t)r->glyph_w, (uint32_t)r->glyph_h},
 			.thumb_pos = {(uint32_t)thumb_y, (uint32_t)thumb_h},
 			.cursor = {v.grid->rel_caret_col + v.grid->last_line_num_gap, v.grid->rel_caret_row},
-			.thumb_color = 0x808080ff,
+			.thumb_color = thumb_color,
 			.cursor_color = cursor_color,
 			.columns = (uint32_t)v.grid->cols,
 			.grid_cell_offset = 0,
@@ -323,7 +329,14 @@ static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
 		grid.jump_to_offset(&file, pos, JUMP_FLAG_TOP);
 	}
 
-	if (input_state.left_flags & 3)
+	int was_hovered = input_state.thumb_flags & 2;
+
+	if (input_state.x >= vk.wnd_width - THUMB_WIDTH)
+		input_state.thumb_flags |= 2;
+	else
+		input_state.thumb_flags &= ~2;
+
+	if ((input_state.left_flags & 3) || was_hovered != (input_state.thumb_flags & 2))
 		needs_resubmit = true;
 }
 
@@ -346,9 +359,13 @@ int main(int argc, char **argv) {
 
 	formatter.colors[0] = 0x080808ff;
 	formatter.colors[1] = 0xf0f0f0ff;
-	formatter.colors[2] = 0x282828ff;
+	formatter.colors[2] = 0x202020ff;
 	formatter.colors[3] = 0xb0b0b0ff;
 	formatter.colors[4] = 0x141414ff;
+
+	formatter.active_thumb_color = 0x808080ff;
+	formatter.hovered_thumb_color = 0x404040ff;
+	formatter.inactive_thumb_color = 0x202020ff;
 
 	cursor_color = 0xf0f0f0ff;
 

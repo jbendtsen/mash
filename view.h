@@ -1,6 +1,6 @@
 #pragma once
 
-#define THUMB_WIDTH 16
+#define THUMB_WIDTH 14
 #define THUMB_FRAC 0.15625
 
 #define JUMP_FLAG_TOP            1
@@ -78,11 +78,15 @@ struct Syntax_Token {
 };
 
 struct Formatter {
+	static constexpr int N_MODES = 32;
+	Syntax_Mode modes[N_MODES];
+
 	static constexpr int N_COLORS = 32;
 	uint32_t colors[N_COLORS];
 
-	static constexpr int N_MODES = 32;
-	Syntax_Mode modes[N_MODES];
+	uint32_t active_thumb_color;
+	uint32_t hovered_thumb_color;
+	uint32_t inactive_thumb_color;
 
 	int cur_mode;
 
