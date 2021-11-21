@@ -369,7 +369,7 @@ int main(int argc, char **argv) {
 	font_render = size_up_font_render(font_face, 10, 96, 96);
 
 	formatter.modes[0].fore_color_idx = 1;
-	formatter.modes[0].glyphset = 2; // italic
+	formatter.modes[0].glyphset = 0; // italic
 
 	formatter.colors[0] = 0x080808ff;
 	formatter.colors[1] = 0xf0f0f0ff;

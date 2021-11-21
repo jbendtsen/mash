@@ -59,8 +59,8 @@ struct File {
 };
 
 struct Syntax_Mode {
-	char accepted_min[8]; // .eg "0Aa_"
-	char accepted_max[8]; // .eg "9Zz_"
+	char accepted_min[8]; // eg. "0Aa_"
+	char accepted_max[8]; // eg. "9Zz_"
 	int fore_color_idx;
 	int back_color_idx;
 	int glyphset; // 0 = regular, 1 = bold, 2 = italic, 3 = bold italic
@@ -70,7 +70,8 @@ struct Syntax_Mode {
 struct Syntax_Token {
 	char *str;
 	int len;
-	int required_mode;
+	char required_mode_min[4]; // eg. 0, 2
+	char required_mode_max[4]; // eg. 0, -1
 	int mode_of;
 	int mode_switch;
 
