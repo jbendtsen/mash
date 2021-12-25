@@ -189,6 +189,84 @@ int64_t parse_syntax_config(u8 *buf, int size, Syntax_Mode *modes, int max_modes
 
 	for (int i = 0; i < size; i++) {
 		u8 c = buf[i];
+
+		if (pos > 0 && (c == ' ' || c == '\t' || c == '\n')) {
+			if (param == 1 && kind == ConfigLine::Token) {
+				char *str = token_pool.add_string((char*)buf + i - pos, pos);
+
+				bool was_esc = false;
+				int j = 0, k = 0;
+				for (j = 0; j < pos; j++) {
+					char c = str[j];
+					if (was_esc) {
+						if (c == ' ') str[k++] = ' ';
+						else if (c == 'n') str[k++] = '\n';
+						else if (c == 't') str[k++] = '\t';
+					}
+					else if (c != '\\') {
+						str[k++] = c;
+					}
+					was_esc = c == '\\';
+				}
+				str[k] = 0;
+
+				cur_token.str = str;
+				cur_token.len = k;
+			}
+
+			if (param == 0) {
+				if (pos == 4 && lp.point_mode == pos)
+					kind = ConfigLine::Mode;
+				else if (pos == 5 && lp.point_token == pos)
+					kind = ConfigLine::Token;
+			}
+			else if (kind == ConfigLine::Mode) {
+				if (lp.mode_param == ModeParam::Style) {
+					if (pos ==  4 && lp.point_style_bold == pos)
+						cur_mode.glyphset = static_cast<int>(TextStyle::Bold);
+					else if (pos ==  6 && lp.point_style_italic == pos)
+						cur_mode.glyphset = static_cast<int>(TextStyle::Italic);
+					else if (pos ==  7 && lp.point_style_regular == pos)
+						cur_mode.glyphset = static_cast<int>(TextStyle::Regular);
+					else if (pos == 11 && lp.point_style_bi == pos)
+						cur_mode.glyphset = static_cast<int>(TextStyle::BoldItalic);
+				}
+				else if (lp.mode_param == ModeParam::Modifier) {
+					if (pos ==  6 && lp.point_mod_normal == pos)
+						cur_mode.modifier = static_cast<int>(TextModifier::Normal);
+					else if (pos ==  9 && lp.point_mod_underline == pos)
+						cur_mode.modifier = static_cast<int>(TextModifier::Underline);
+					else if (pos == 13 && lp.point_mod_strikethrough == pos)
+						cur_mode.modifier = static_cast<int>(TextModifier::Strikethrough);
+				}
+			}
+			else if (kind == ConfigLine::Token) {
+				if (lp.token_param == TokenParam::PrevModeMin || lp.token_param == TokenParam::PrevModeMax) {
+					cur_token.n_mode_ranges = value_idx;
+				}
+			}
+
+			if (c == '\n') {
+				if (kind == ConfigLine::Mode && mode_idx < max_modes)
+					modes[mode_idx++] = cur_mode;
+				else if (kind == ConfigLine::Token && token_idx < max_tokens)
+					tokens[token_idx++] = cur_token;
+
+				param = 0;
+				kind = ConfigLine::None;
+				mode_index = 0;
+			}
+			else {
+				param++;
+			}
+
+			memset(&lp, 0, sizeof(Line_Params));
+			value_idx = 0;
+			pos = 0;
+
+			continue;
+		}
+
 		if (param == 0) {
 			if (pos < 4 && c == "mode"[pos])
 				lp.point_mode++;
@@ -225,12 +303,16 @@ int64_t parse_syntax_config(u8 *buf, int size, Syntax_Mode *modes, int max_modes
 					}
 				}
 				else if (lp.mode_param == ModeParam::Min) {
-					if (pos < 8)
-						cur_mode.accepted_min[pos] = c;
+					int idx = pos - 4;
+					if (idx >= 0 && idx < 8) {
+						cur_mode.accepted_min[idx] = c;
+					}
 				}
 				else if (lp.mode_param == ModeParam::Max) {
-					if (pos < 8)
-						cur_mode.accepted_max[pos] = c;
+					int idx = pos - 4;
+					if (idx >= 0 && idx < 8) {
+						cur_mode.accepted_max[idx] = c;
+					}
 				}
 				else if (lp.mode_param == ModeParam::Back) {
 					if (c >= '0' && c <= '9') {
@@ -245,15 +327,21 @@ int64_t parse_syntax_config(u8 *buf, int size, Syntax_Mode *modes, int max_modes
 					}
 				}
 				else if (lp.mode_param == ModeParam::Style) {
-					if (pos <  4 && c == "bold"[pos]) lp.point_style_bold++;
-					if (pos <  6 && c == "italic"[pos]) lp.point_style_italic++;
-					if (pos <  7 && c == "regular"[pos]) lp.point_style_regular++;
-					if (pos < 11 && c == "bold-italic"[pos]) lp.point_style_bi++;
+					int idx = pos - 6;
+					if (idx >= 0) {
+						if (idx <  4 && c == "bold"[idx]) lp.point_style_bold++;
+						if (idx <  6 && c == "italic"[idx]) lp.point_style_italic++;
+						if (idx <  7 && c == "regular"[idx]) lp.point_style_regular++;
+						if (idx < 11 && c == "bold-italic"[idx]) lp.point_style_bi++;
+					}
 				}
 				else if (lp.mode_param == ModeParam::Modifier) {
-					if (pos <  6 && c == "normal"[pos]) lp.point_mod_normal++;
-					if (pos <  9 && c == "underline"[pos]) lp.point_mod_underline++;
-					if (pos < 13 && c == "strikethrough"[pos]) lp.point_mod_strikethrough++;
+					int idx = pos - 9;
+					if (idx >= 0) {
+						if (idx <  6 && c == "normal"[idx]) lp.point_mod_normal++;
+						if (idx <  9 && c == "underline"[idx]) lp.point_mod_underline++;
+						if (idx < 13 && c == "strikethrough"[idx]) lp.point_mod_strikethrough++;
+					}
 				}
 			}
 			else if (kind == ConfigLine::Token) {
@@ -302,64 +390,7 @@ int64_t parse_syntax_config(u8 *buf, int size, Syntax_Mode *modes, int max_modes
 			}
 		}
 
-		if (pos > 0 && (c == ' ' || c == '\t' || c == '\n')) {
-			if (param == 1 && kind == ConfigLine::Token) {
-				char *str = token_pool.add_string((char*)buf + i - pos, pos);
-				cur_token.str = str;
-				cur_token.len = pos;
-			}
-
-			if (param == 0) {
-				if (pos == 3 && lp.point_mode == pos+1)
-					kind = ConfigLine::Mode;
-				else if (pos == 4 && lp.point_token == pos+1)
-					kind = ConfigLine::Token;
-			}
-			else if (kind == ConfigLine::Mode) {
-				if (lp.mode_param == ModeParam::Style) {
-					if (pos ==  4 && lp.point_style_bold == pos)
-						cur_mode.glyphset = static_cast<int>(TextStyle::Bold);
-					else if (pos ==  6 && lp.point_style_italic == pos)
-						cur_mode.glyphset = static_cast<int>(TextStyle::Italic);
-					else if (pos ==  7 && lp.point_style_regular == pos)
-						cur_mode.glyphset = static_cast<int>(TextStyle::Regular);
-					else if (pos == 11 && lp.point_style_bi == pos)
-						cur_mode.glyphset = static_cast<int>(TextStyle::BoldItalic);
-				}
-				else if (lp.mode_param == ModeParam::Modifier) {
-					if (pos ==  6 && lp.point_mod_normal == pos)
-						cur_mode.modifier = static_cast<int>(TextModifier::Normal);
-					else if (pos ==  9 && lp.point_mod_underline == pos)
-						cur_mode.modifier = static_cast<int>(TextModifier::Underline);
-					else if (pos == 13 && lp.point_mod_strikethrough == pos)
-						cur_mode.modifier = static_cast<int>(TextModifier::Strikethrough);
-				}
-			}
-			else if (kind == ConfigLine::Token) {
-				if (lp.token_param == TokenParam::PrevModeMin || lp.token_param == TokenParam::PrevModeMax) {
-					cur_token.n_mode_ranges = value_idx;
-				}
-			}
-
-			if (c == '\n') {
-				if (kind == ConfigLine::Mode && mode_idx < max_modes)
-					modes[mode_idx++] = cur_mode;
-				else if (kind == ConfigLine::Token && token_idx < max_tokens)
-					tokens[token_idx++] = cur_token;
-
-				param = 0;
-				kind = ConfigLine::None;
-				mode_index = 0;
-				memset(&lp, 0, sizeof(Line_Params));
-			}
-			else
-				param++;
-
-			pos = 0;
-			value_idx = 0;
-		}
-		else
-			pos++;
+		pos++;
 	}
 
 	if (kind == ConfigLine::Mode && mode_idx < max_modes)
@@ -387,34 +418,32 @@ void splat(const char *str, int len) {
 	write(0, str, len);
 }
 
-int main(int argc, char **argv) {
-	if (argc != 3) {
-		printf("Syntax Highlighter\n"
-			"Usage: %s <file to print> <syntax config file> [extra arg for no output]\n", argv[0]);
-		return 1;
-	}
-
-	Loaded_File file, syntax_file;
-	if (!file.load(argv[1]) || !syntax_file.load(argv[2]))
-		return 2;
-
-	auto modes = new Syntax_Mode[TEST_MAX_MODES];
-	auto tokens = new Syntax_Token[TEST_MAX_TOKENS];
-	String_Pool token_pool;
-
-	int64_t stats = parse_syntax_config(syntax_file.buffer, syntax_file.size, modes, TEST_MAX_MODES, tokens, TEST_MAX_TOKENS, token_pool);
-	int n_modes = (int)(stats >> 32);
-	int n_tokens = (int)stats;
-
+void print_file_highlighted(Loaded_File& file, Syntax_Mode *modes, int n_modes, Syntax_Token *tokens, int n_tokens) {
 	splat("\x1b[0m");
 
 	int start = -1;
 	int mode = 0;
+	int old_mode = 0;
+
+	int n_new = 0;
+	int n_still_good = 0;
+
+	for (int i = 0; i < n_modes; i++) {
+		char buf[16];
+		strncpy(buf, modes[i].accepted_min, 7);
+		strncpy(buf + 8, modes[i].accepted_max, 7);
+		fprintf(stderr, "%s\n%s\n", buf, buf + 8);
+	}
 
 	for (int i = 0; i < file.size; i++) {
 		char c = file.buffer[i];
 		bool good = false;
 		Syntax_Mode *m = &modes[mode];
+
+		if (mode != old_mode) {
+			fprintf(stderr, "mode=%d\n", mode);
+			old_mode = mode;
+		}
 
 		for (int j = 0; j < 8; j++) {
 			char min = m->accepted_min[j];
@@ -431,6 +460,7 @@ int main(int argc, char **argv) {
 		// NOT GOOD
 		if (!good) {
 			if (start >= 0) {
+				n_new++;
 				char *str = (char*)&file.buffer[start];
 				int len = i - start;
 
@@ -445,6 +475,7 @@ int main(int argc, char **argv) {
 						}
 					}
 					if (still_good) {
+						n_still_good++;
 						bool we_really_still_good_tho = true;
 						int n_ranges = tokens[j].n_mode_ranges;
 						for (int k = 0; k < 4 && k < n_ranges; k++) {
@@ -507,7 +538,7 @@ int main(int argc, char **argv) {
 				splat(seq_buf);
 
 				splat((char*)&file.buffer[start], i - start);
-				//splat("\x1b[0m");
+				splat("\x1b[0m");
 			}
 
 			start = -1;
@@ -522,6 +553,31 @@ int main(int argc, char **argv) {
 	}
 
 	splat("\x1b[0m");
+
+	fprintf(stderr, "%d/%d\n", n_new, file.size);
+	fprintf(stderr, "%d\n", n_still_good);
+}
+
+int main(int argc, char **argv) {
+	if (argc != 3) {
+		printf("Syntax Highlighter\n"
+			"Usage: %s <file to print> <syntax config file> [extra arg for no output]\n", argv[0]);
+		return 1;
+	}
+
+	Loaded_File file, syntax_file;
+	if (!file.load(argv[1]) || !syntax_file.load(argv[2]))
+		return 2;
+
+	auto modes = new Syntax_Mode[TEST_MAX_MODES];
+	auto tokens = new Syntax_Token[TEST_MAX_TOKENS];
+	String_Pool token_pool;
+
+	int64_t stats = parse_syntax_config(syntax_file.buffer, syntax_file.size, modes, TEST_MAX_MODES, tokens, TEST_MAX_TOKENS, token_pool);
+	int n_modes = (int)(stats >> 32);
+	int n_tokens = (int)stats;
+
+	print_file_highlighted(file, modes, n_modes, tokens, n_tokens);
 
 	delete[] tokens;
 	delete[] modes;
