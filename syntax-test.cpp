@@ -49,7 +49,7 @@ struct String_Pool {
 				if (size > 0) memcpy(new_buf, buffer, size);
 				delete[] buffer;
 			}
-	
+
 			buffer = new_buf;
 			capacity = new_cap;
 		}
@@ -175,6 +175,7 @@ int64_t parse_syntax_config(u8 *buf, int size, Syntax_Mode *modes, int max_modes
 	int mode_idx = 0;
 	int token_idx = 0;
 
+	bool is_comment = false;
 	int param = 0;
 	int pos = 0;
 	int value_idx = 0;
@@ -187,8 +188,17 @@ int64_t parse_syntax_config(u8 *buf, int size, Syntax_Mode *modes, int max_modes
 	Syntax_Mode cur_mode = {0};
 	Syntax_Token cur_token = {0};
 
+	u8 c = buf[0];
 	for (int i = 0; i < size; i++) {
-		u8 c = buf[i];
+		if (i == 0 || c == '\n') {
+			is_comment = buf[i] == '#';
+		}
+
+		c = buf[i];
+		if (is_comment) {
+			if (c == '\n') is_comment = false;
+			continue;
+		}
 
 		if (pos > 0 && (c == ' ' || c == '\t' || c == '\n')) {
 			if (param == 1 && kind == ConfigLine::Token) {
@@ -202,6 +212,7 @@ int64_t parse_syntax_config(u8 *buf, int size, Syntax_Mode *modes, int max_modes
 						if (c == ' ') str[k++] = ' ';
 						else if (c == 'n') str[k++] = '\n';
 						else if (c == 't') str[k++] = '\t';
+						else if (c == '\\') str[k++] = '\\';
 					}
 					else if (c != '\\') {
 						str[k++] = c;
@@ -242,7 +253,7 @@ int64_t parse_syntax_config(u8 *buf, int size, Syntax_Mode *modes, int max_modes
 			}
 			else if (kind == ConfigLine::Token) {
 				if (lp.token_param == TokenParam::PrevModeMin || lp.token_param == TokenParam::PrevModeMax) {
-					cur_token.n_mode_ranges = value_idx;
+					cur_token.n_mode_ranges = value_idx + 1;
 				}
 			}
 
@@ -251,6 +262,9 @@ int64_t parse_syntax_config(u8 *buf, int size, Syntax_Mode *modes, int max_modes
 					modes[mode_idx++] = cur_mode;
 				else if (kind == ConfigLine::Token && token_idx < max_tokens)
 					tokens[token_idx++] = cur_token;
+
+				memset(&cur_mode, 0, sizeof(Syntax_Mode));
+				memset(&cur_token, 0, sizeof(Syntax_Token));
 
 				param = 0;
 				kind = ConfigLine::None;
@@ -418,9 +432,109 @@ void splat(const char *str, int len) {
 	write(0, str, len);
 }
 
+struct Mode_State {
+	int mode_of;
+	int mode_switch;
+};
+
+void emit_span(Mode_State& state, char *str, int len, Syntax_Mode *modes, int n_modes, Syntax_Token *tokens, int n_tokens) {
+	bool should_change_mode = false;
+
+	for (int j = 0; j < n_tokens; j++) {
+		bool found = false;
+
+		if (len == tokens[j].len) {
+			found = true;
+			for (int k = 0; k < len; k++) {
+				if (str[k] != tokens[j].str[k]) {
+					found = false;
+					break;
+				}
+			}
+		}
+
+		if (found) {
+			int n_ranges = tokens[j].n_mode_ranges;
+			found = n_ranges == 0;
+
+			for (int k = 0; k < 4 && k < n_ranges; k++) {
+				int min = tokens[j].required_mode_min[k];
+				int max = tokens[j].required_mode_max[k];
+				if (min >= 0 && max >= 0 && state.mode_of >= min && state.mode_of <= max) {
+					found = true;
+					break;
+				}
+			}
+
+			if (found) {
+				if (tokens[j].mode_of >= 0 && tokens[j].mode_of < n_modes) {
+					state.mode_of = tokens[j].mode_of;
+				}
+				if (tokens[j].mode_switch >= 0 && tokens[j].mode_switch < n_modes) {
+					state.mode_switch = tokens[j].mode_switch;
+					should_change_mode = true;
+				}
+
+				break;
+			}
+		}
+	}
+
+	Syntax_Mode *m = &modes[state.mode_of];
+
+	char seq_buf[32];
+	char *s = seq_buf;
+	*s++ = '\x1b';
+	*s++ = '[';
+	*s++ = '0';
+
+	if (m->glyphset == 1 || m->glyphset == 3) {
+		*s++ = ';';
+		*s++ = '1';
+	}
+	if (m->glyphset == 2 || m->glyphset == 3) {
+		*s++ = ';';
+		*s++ = '3';
+	}
+	if (m->modifier == 1) {
+		*s++ = ';';
+		*s++ = '9';
+	}
+	if (m->modifier == 2) {
+		*s++ = ';';
+		*s++ = '4';
+	}
+
+	if (m->fore_color_idx != 0) {
+		*s++ = ';';
+		*s++ = '3';
+		*s++ = '0' + (m->fore_color_idx & 7);
+	}
+	if (m->back_color_idx != 0) {
+		*s++ = ';';
+		*s++ = '4';
+		*s++ = '0' + (m->back_color_idx & 7);
+	}
+
+	*s++ = 'm';
+	*s++ = 0;
+	splat(seq_buf);
+
+	splat(str, len);
+	splat("\x1b[0m");
+
+	if (should_change_mode)
+		state.mode_of = state.mode_switch;
+}
+
+/* Here's like a comment
+man
+*/ /*yes*/ /* no */
+
 void print_file_highlighted(Loaded_File& file, Syntax_Mode *modes, int n_modes, Syntax_Token *tokens, int n_tokens) {
 	splat("\x1b[0m");
 
+	Mode_State mode_state = {0};
 	int start = -1;
 	int mode = 0;
 	int old_mode = 0;
@@ -428,22 +542,10 @@ void print_file_highlighted(Loaded_File& file, Syntax_Mode *modes, int n_modes, 
 	int n_new = 0;
 	int n_still_good = 0;
 
-	for (int i = 0; i < n_modes; i++) {
-		char buf[16];
-		strncpy(buf, modes[i].accepted_min, 7);
-		strncpy(buf + 8, modes[i].accepted_max, 7);
-		fprintf(stderr, "%s\n%s\n", buf, buf + 8);
-	}
-
 	for (int i = 0; i < file.size; i++) {
 		char c = file.buffer[i];
 		bool good = false;
 		Syntax_Mode *m = &modes[mode];
-
-		if (mode != old_mode) {
-			fprintf(stderr, "mode=%d\n", mode);
-			old_mode = mode;
-		}
 
 		for (int j = 0; j < 8; j++) {
 			char min = m->accepted_min[j];
@@ -460,89 +562,12 @@ void print_file_highlighted(Loaded_File& file, Syntax_Mode *modes, int n_modes, 
 		// NOT GOOD
 		if (!good) {
 			if (start >= 0) {
-				n_new++;
-				char *str = (char*)&file.buffer[start];
-				int len = i - start;
-
-				for (int j = 0; j < n_tokens; j++) {
-					bool still_good = true;
-					for (int k = 0; k < len; k++) {
-						// are we still good?
-						if (str[k] != tokens[j].str[k]) {
-							// nah bro
-							still_good = false;
-							break;
-						}
-					}
-					if (still_good) {
-						n_still_good++;
-						bool we_really_still_good_tho = true;
-						int n_ranges = tokens[j].n_mode_ranges;
-						for (int k = 0; k < 4 && k < n_ranges; k++) {
-							int min = tokens[j].required_mode_min[k];
-							int max = tokens[j].required_mode_max[k];
-							// really tho?
-							if (min >= 0 && max >= 0 && (mode < min || mode > max)) {
-								// nah fuk u
-								we_really_still_good_tho = false;
-								break;
-							}
-						}
-						if (we_really_still_good_tho) {
-							if (tokens[j].mode_of >= 0 && tokens[j].mode_of < n_modes) {
-								m = &modes[tokens[j].mode_of];
-								if (tokens[j].mode_switch >= 0 && tokens[j].mode_switch < n_modes) {
-									mode = tokens[j].mode_switch;
-								}
-							}
-						}
-					}
-				}
-
-				char seq_buf[32];
-				char *s = seq_buf;
-				*s++ = '\x1b';
-				*s++ = '[';
-				*s++ = '0';
-
-				if (m->glyphset == 1 || m->glyphset == 3) {
-					*s++ = ';';
-					*s++ = '1';
-				}
-				if (m->glyphset == 2 || m->glyphset == 3) {
-					*s++ = ';';
-					*s++ = '3';
-				}
-				if (m->modifier == 1) {
-					*s++ = ';';
-					*s++ = '9';
-				}
-				if (m->modifier == 2) {
-					*s++ = ';';
-					*s++ = '4';
-				}
-
-				if (m->fore_color_idx != 0) {
-					*s++ = ';';
-					*s++ = '3';
-					*s++ = '0' + (m->fore_color_idx & 7);
-				}
-				if (m->back_color_idx != 0) {
-					*s++ = ';';
-					*s++ = '4';
-					*s++ = '0' + (m->back_color_idx & 7);
-				}
-
-				*s++ = 'm';
-				*s++ = 0;
-				splat(seq_buf);
-
-				splat((char*)&file.buffer[start], i - start);
-				splat("\x1b[0m");
+				emit_span(mode_state, (char*)&file.buffer[start], i - start, modes, n_modes, tokens, n_tokens);
 			}
 
+			emit_span(mode_state, (char*)&file.buffer[i], 1, modes, n_modes, tokens, n_tokens);
+
 			start = -1;
-			splat(c);
 		}
 		// YEAH GOOD
 		else {
@@ -553,9 +578,6 @@ void print_file_highlighted(Loaded_File& file, Syntax_Mode *modes, int n_modes, 
 	}
 
 	splat("\x1b[0m");
-
-	fprintf(stderr, "%d/%d\n", n_new, file.size);
-	fprintf(stderr, "%d\n", n_still_good);
 }
 
 int main(int argc, char **argv) {
